@@ -1,6 +1,7 @@
 import sqlite3
 import json
 from flask import Flask, request, jsonify
+from flask_cors import CORS # CORS 추가
 from functools import wraps # 관리자 인증 데코레이터용 (예시)
 import os
 import sys # 환경 변수 확인용
@@ -24,6 +25,9 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
 
 
 app = Flask(__name__)
+# CORS 설정 추가: 모든 경로에 대해 모든 Origin 허용 (개발/테스트용)
+# ★★★ 운영 시에는 origins=["https://DreamHousekSH.github.io"] 와 같이 특정 출처만 허용하는 것이 안전합니다. ★★★
+CORS(app)
 
 def get_db():
     """데이터베이스 연결을 가져옵니다."""
