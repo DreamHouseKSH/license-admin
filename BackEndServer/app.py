@@ -2,7 +2,9 @@ import sqlite3
 import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS # CORS 추가
-from functools import wraps # 관리자 인증 데코레이터용 (예시)
+# from functools import wraps # Basic Auth 데코레이터 제거
+from flask_jwt_extended import create_access_token, jwt_required, JWTManager # JWT 추가
+from datetime import timedelta # 토큰 만료 시간 설정용
 import os
 import sys # 환경 변수 확인용
 from dotenv import load_dotenv # .env 파일 로드용
@@ -17,7 +19,7 @@ DATABASE = 'license_db.sqlite'
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
 ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
 
-# 환경 변수가 설정되지 않았는지 확인 (이제 .env 또는 시스템 환경 변수에 반드시 있어야 함)
+# 환경 변수가 설정되지 않았는지 확인
 if not ADMIN_USERNAME or not ADMIN_PASSWORD:
     print("오류: ADMIN_USERNAME 또는 ADMIN_PASSWORD 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
     print("BackEndServer/.env 파일을 생성하고 값을 설정하거나 시스템 환경 변수를 설정해주세요.", file=sys.stderr)
@@ -25,9 +27,19 @@ if not ADMIN_USERNAME or not ADMIN_PASSWORD:
 
 
 app = Flask(__name__)
-# CORS 설정 추가: 모든 경로에 대해 모든 Origin 허용 (개발/테스트용)
+
+# --- JWT 설정 ---
+# ★★★ 운영 환경에서는 반드시 강력하고 예측 불가능한 비밀 키를 사용하고, 환경 변수로 관리해야 합니다! ★★★
+# 예: python -c 'import secrets; print(secrets.token_hex(32))' 로 생성
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-dev-key") # 개발용 기본값, .env 또는 환경변수 설정 권장
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1) # 토큰 유효 시간 (예: 1시간)
+jwt = JWTManager(app)
+
+# --- CORS 설정 ---
 # ★★★ 운영 시에는 origins=["https://DreamHousekSH.github.io"] 와 같이 특정 출처만 허용하는 것이 안전합니다. ★★★
-CORS(app)
+CORS(app) # 기본적으로 모든 출처 허용 (개발용)
+# 특정 출처만 허용하려면: CORS(app, resources={r"/api/*": {"origins": "https://your-frontend-domain.com"}})
+
 
 def get_db():
     """데이터베이스 연결을 가져옵니다."""
@@ -57,15 +69,7 @@ def init_db():
     else:
         print("Database already exists.")
 
-# 관리자 인증 데코레이터 (매우 기본적인 예시 - 실제로는 토큰 기반 등 사용)
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not (auth.username == ADMIN_USERNAME and auth.password == ADMIN_PASSWORD):
-            return jsonify({"message": "Authentication Required"}), 401, {'WWW-Authenticate': 'Basic realm="Login Required"'}
-        return f(*args, **kwargs)
-    return decorated_function
+# Basic Auth 데코레이터는 제거됨
 
 @app.route('/register', methods=['POST'])
 def register_computer():
@@ -131,12 +135,29 @@ def validate_computer():
     finally:
         conn.close()
 
-# --- 관리자 API ---
+# --- 관리자 인증 API ---
+
+@app.route('/admin/login', methods=['POST'])
+def admin_login():
+    """관리자 로그인을 처리하고 JWT 토큰을 발급합니다."""
+    username = request.json.get('username', None)
+    password = request.json.get('password', None)
+
+    # 환경 변수에 저장된 관리자 정보와 비교
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        # ID는 관리자 계정 하나이므로 간단히 'admin' 사용 (필요시 DB 연동)
+        access_token = create_access_token(identity=username)
+        return jsonify(access_token=access_token)
+    else:
+        return jsonify({"msg": "Bad username or password"}), 401
+
+
+# --- 관리자 기능 API (JWT 보호) ---
 
 @app.route('/admin/requests', methods=['GET'])
-@admin_required
+@jwt_required() # JWT 토큰 필요
 def get_pending_requests():
-    """관리자가 승인 대기 중인 요청 목록을 봅니다."""
+    """관리자가 승인 대기 중인 요청 목록을 봅니다. (JWT 인증 필요)"""
     conn = get_db()
     cursor = conn.cursor()
     try:
@@ -150,9 +171,9 @@ def get_pending_requests():
         conn.close()
 
 @app.route('/admin/action/<int:request_id>', methods=['POST']) # 예: /admin/action/123
-@admin_required
+@jwt_required() # JWT 토큰 필요
 def process_request(request_id):
-    """관리자가 요청을 승인 또는 거절합니다."""
+    """관리자가 요청을 승인 또는 거절합니다. (JWT 인증 필요)"""
     conn = get_db()
     cursor = conn.cursor()
     try:
