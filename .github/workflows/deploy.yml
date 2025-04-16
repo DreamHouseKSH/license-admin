@@ -1,0 +1,41 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # main 브랜치에 푸시될 때 실행
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest # 실행 환경
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4 # 코드를 체크아웃
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4 # Node.js 환경 설정
+        with:
+          node-version: '20' # package.json에 명시된 버전 또는 LTS 버전 사용 권장
+
+      - name: Install dependencies
+        run: npm install # 의존성 설치
+
+      - name: Build project
+        run: npm run build # 프로젝트 빌드 (package.json의 build 스크립트 실행)
+        env:
+          # .env.production 파일 내용을 환경 변수로 설정해야 할 수 있습니다.
+          # 예: VITE_API_URL: ${{ secrets.VITE_API_URL }}
+          # GitHub 저장소의 Settings > Secrets and variables > Actions 에서 설정 필요
+          # .env.production 파일 내용을 확인하고 필요한 변수를 추가하세요.
+          VITE_API_URL: ${{ secrets.VITE_API_URL }} # GitHub Secrets에서 API URL 가져오기
+          CI: false # 일부 빌드 환경에서 경고를 오류로 처리하는 것을 방지
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }} # GitHub Actions에서 자동으로 제공하는 토큰
+          publish_dir: ./dist # 배포할 디렉토리 (vite build 결과물)
+          # user_name: 'github-actions[bot]' # 커밋 사용자 이름 (선택 사항)
+          # user_email: 'github-actions[bot]@users.noreply.github.com' # 커밋 사용자 이메일 (선택 사항)
+          # commit_message: 'Deploy to GitHub Pages' # 커밋 메시지 (선택 사항)
