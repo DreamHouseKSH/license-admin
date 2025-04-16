@@ -9,22 +9,23 @@ function formatDate(dateString) {
   if (!dateString) return '-';
   try {
     const date = new Date(dateString);
-    // 로케일과 옵션을 사용하여 더 보기 좋게 포맷 가능
     return date.toLocaleString('ko-KR', {
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
     });
   } catch (error) {
     console.error("Error formatting date:", dateString, error);
-    return dateString; // 오류 시 원본 반환
+    return dateString;
   }
 }
 
 export default function App() {
   // --- 상태 관리 ---
-  const [allUsers, setAllUsers] = useState([]); // 전체 사용자 목록 상태 추가
-  const [computerId, setComputerId] = useState(''); // Computer ID 입력 상태 (검증용)
-  const [validationResult, setValidationResult] = useState(null); // 검증 결과 상태
+  const [allUsers, setAllUsers] = useState([]); // 관리자: 전체 사용자 목록
+  const [computerId, setComputerId] = useState(''); // 검증용 Computer ID 입력
+  const [validationResult, setValidationResult] = useState(null); // 검증 결과
+  const [registerComputerId, setRegisterComputerId] = useState(''); // 등록 요청용 Computer ID 입력
+  const [registrationResult, setRegistrationResult] = useState(null); // 등록 요청 결과
 
   // JWT 인증 및 관리자 상태
   const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || null);
@@ -42,7 +43,7 @@ export default function App() {
     if (!accessToken) return;
     setAdminActionError('');
     try {
-      const res = await axios.get(`${API_URL}/admin/users`, { // 새 API 엔드포인트 사용
+      const res = await axios.get(`${API_URL}/admin/users`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
       setAllUsers(res.data || []);
@@ -56,9 +57,9 @@ export default function App() {
         setAdminActionError('Failed to fetch user list.');
       }
     }
-  }, [accessToken]); // handleAdminLogout을 의존성 배열에서 제거 (내부에서 호출되므로)
+  }, [accessToken]);
 
-  // 관리자: 요청 처리 (승인/거절) - 기존 함수 유지
+  // 관리자: 요청 처리 (승인/거절)
   const handleAction = async (id, action) => {
     if (!accessToken) return;
     setAdminActionError('');
@@ -67,7 +68,7 @@ export default function App() {
         { action: action },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      fetchAllUsers(); // 전체 목록 새로고침으로 변경
+      fetchAllUsers();
     } catch (error) {
       console.error(`Error processing action ${action} for ${id}:`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
@@ -81,19 +82,18 @@ export default function App() {
     }
   };
 
-  // 관리자: 사용자 삭제 함수 추가
+  // 관리자: 사용자 삭제
   const handleDelete = async (id) => {
     if (!accessToken) return;
-    // 사용자에게 삭제 확인 (선택 사항)
     if (!window.confirm(`Are you sure you want to delete user ID ${id}? This action cannot be undone.`)) {
       return;
     }
     setAdminActionError('');
     try {
-      await axios.delete(`${API_URL}/admin/user/${id}`, { // 새 API 엔드포인트 및 DELETE 메서드 사용
+      await axios.delete(`${API_URL}/admin/user/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
-      fetchAllUsers(); // 전체 목록 새로고침
+      fetchAllUsers();
     } catch (error) {
       console.error(`Error deleting user ${id}:`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
@@ -107,8 +107,7 @@ export default function App() {
     }
   };
 
-
-  // 관리자 로그인 시도 함수
+  // 관리자 로그인
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -135,23 +134,49 @@ export default function App() {
     }
   };
 
-  // 관리자 로그아웃 함수
+  // 관리자 로그아웃
   const handleAdminLogout = () => {
     setAccessToken(null);
     localStorage.removeItem('accessToken');
     setIsLoggedIn(false);
     setAdminUsername('');
     setAdminPassword('');
-    setAllUsers([]); // 사용자 목록 초기화
+    setAllUsers([]);
     setLoginError('');
     setAdminActionError('');
   };
 
+  // 연습용: 등록 요청
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    if (!registerComputerId) {
+      setRegistrationResult({ error: 'Please enter a Computer ID to register.' });
+      return;
+    }
+    setRegistrationResult(null);
+    try {
+      const res = await axios.post(`${API_URL}/register`, {
+        computer_id: registerComputerId,
+      });
+      setRegistrationResult({ success: res.data.message });
+      setRegisterComputerId(''); // 성공 시 입력 필드 초기화
+    } catch (error) {
+      console.error("Registration request error:", error);
+      if (error.response && error.response.data && error.response.data.error) {
+         setRegistrationResult({ error: error.response.data.error });
+      } else if (error.response && error.response.data && error.response.data.message) {
+         // 백엔드에서 성공(200)이지만 메시지가 오는 경우 (이미 등록됨)
+         setRegistrationResult({ success: error.response.data.message });
+      }
+      else {
+        setRegistrationResult({ error: 'An error occurred during registration request.' });
+      }
+    }
+  };
 
-  // 공개: Computer ID 검증 (랜딩 페이지에서는 제거하거나 다른 위치로 이동 가능)
-  const handleValidate = async () => {
-    // 이 기능은 랜딩 페이지 컨셉과 맞지 않을 수 있으므로 주석 처리하거나 필요시 유지
-    /*
+  // 연습용: 상태 확인
+  const handleValidate = async (e) => {
+     e.preventDefault(); // 폼 제출 방지 추가
     if (!computerId) {
       setValidationResult({ error: 'Please enter a Computer ID.' });
       return;
@@ -170,33 +195,98 @@ export default function App() {
         setValidationResult({ error: 'An error occurred during validation.' });
       }
     }
-    */
   };
 
 
   // --- useEffect 훅 ---
-  // 컴포넌트 마운트 시 또는 로그인 상태 변경 시 사용자 목록 가져오기
   useEffect(() => {
     if (isLoggedIn) {
-      fetchAllUsers(); // 전체 사용자 목록 가져오기로 변경
+      fetchAllUsers();
     }
-  }, [isLoggedIn, fetchAllUsers]); // fetchAllUsers 의존성 추가
+  }, [isLoggedIn, fetchAllUsers]);
 
 
   // --- 렌더링 ---
   return (
-    <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center">
+    <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center space-y-8">
 
-      {/* --- 랜딩 페이지 내용 (로그인 안했을 때) --- */}
-      {!isLoggedIn && (
-        <div className="w-full max-w-2xl text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-800 mb-4">라이선스 관리 시스템</h1>
+      {/* --- 랜딩 페이지 내용 --- */}
+      <div className="w-full max-w-2xl text-center">
+        <h1 className="text-4xl font-bold text-gray-800 mb-4">라이선스 관리 시스템</h1>
+        {!isLoggedIn && (
           <p className="text-lg text-gray-600 mb-8">
             관리자 로그인을 통해 등록된 라이선스를 확인하고 관리할 수 있습니다.
           </p>
-          {/* 여기에 추가적인 랜딩 페이지 요소 (이미지, 기능 소개 등) 추가 가능 */}
+        )}
+      </div>
+
+      {/* --- 연습용 기능 섹션 (로그아웃 상태에서만 보임) --- */}
+      {!isLoggedIn && (
+        <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* 연습용 등록 요청 */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold mb-4 text-gray-700">Request Registration (Practice)</h3>
+            <form onSubmit={handleRegister}>
+              <div className="mb-4">
+                <label htmlFor="registerComputerId" className="block text-sm font-medium text-gray-600 mb-1">
+                  Computer ID:
+                </label>
+                <input
+                  type="text"
+                  id="registerComputerId"
+                  value={registerComputerId}
+                  onChange={(e) => setRegisterComputerId(e.target.value)}
+                  placeholder="Enter Computer ID to register"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                Request
+              </button>
+              {registrationResult && (
+                <div className={`mt-4 p-2 rounded-md text-sm text-center ${registrationResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                  {registrationResult.error ? `Error: ${registrationResult.error}` : registrationResult.success}
+                </div>
+              )}
+            </form>
+          </div>
+
+          {/* 연습용 상태 확인 */}
+          <div className="bg-white p-6 rounded-lg shadow-md">
+            <h3 className="text-xl font-semibold mb-4 text-gray-700">Check Status (Practice)</h3>
+             <form onSubmit={handleValidate}>
+                <div className="mb-4">
+                  <label htmlFor="checkComputerId" className="block text-sm font-medium text-gray-600 mb-1">
+                    Computer ID:
+                  </label>
+                  <input
+                    type="text"
+                    id="checkComputerId"
+                    value={computerId}
+                    onChange={(e) => setComputerId(e.target.value)}
+                    placeholder="Enter Computer ID to check"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Check Status
+                </button>
+                {validationResult && (
+                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === 'Approved' ? 'bg-green-100 text-green-700' : validationResult.status === 'Rejected' ? 'bg-red-100 text-red-700' : validationResult.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-800'}`}>
+                    {validationResult.error ? `Error: ${validationResult.error}` : `Status: ${validationResult.status}`}
+                  </div>
+                )}
+             </form>
+          </div>
         </div>
       )}
+
 
       {/* --- 관리자 섹션 (로그인 폼 또는 관리 패널) --- */}
       <div className="w-full max-w-4xl bg-white p-8 rounded-lg shadow-md">
@@ -205,7 +295,8 @@ export default function App() {
         {!isLoggedIn ? (
           // --- 관리자 로그인 폼 ---
           <form onSubmit={handleAdminLogin} className="max-w-sm mx-auto">
-            <div className="mb-4">
+            {/* ... (로그인 폼 내용은 이전과 동일) ... */}
+             <div className="mb-4">
               <label htmlFor="adminUser" className="block text-sm font-medium text-gray-600 mb-1">Username:</label>
               <input
                 type="text"
@@ -242,7 +333,8 @@ export default function App() {
         ) : (
           // --- 관리자 기능 UI (로그인 시 보임) ---
           <div>
-            <div className="flex justify-between items-center mb-6">
+            {/* ... (로그아웃 버튼 및 사용자 테이블 내용은 이전과 동일) ... */}
+             <div className="flex justify-between items-center mb-6">
               <p className="text-green-600 font-semibold">Admin Logged In</p>
               <button
                 onClick={handleAdminLogout}
@@ -256,7 +348,6 @@ export default function App() {
             {adminActionError && (
               <p className="text-red-600 text-sm mb-4 text-center">{adminActionError}</p>
             )}
-            {/* 사용자 목록 테이블 */}
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -293,7 +384,7 @@ export default function App() {
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{formatDate(user.approval_timestamp)}</td>
                         <td className="px-4 py-3 text-sm text-gray-500">{user.notes || '-'}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium space-x-2">
-                          {user.status === 'Pending' && ( // Pending 상태일 때만 승인/거절 표시 (선택 사항)
+                          {user.status === 'Pending' && (
                             <>
                               <button
                                 onClick={() => handleAction(user.id, 'Approve')}
@@ -311,7 +402,6 @@ export default function App() {
                               </button>
                             </>
                           )}
-                           {/* 항상 삭제 버튼 표시 */}
                            <button
                             onClick={() => handleDelete(user.id)}
                             className="text-red-600 hover:text-red-900"
@@ -333,14 +423,6 @@ export default function App() {
           </div>
         )}
       </div>
-
-      {/* 기존 라이선스 검증 UI (필요시 복구 또는 다른 위치로 이동) */}
-      {/*
-      <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-md mt-8">
-        <h1 className="text-2xl font-bold mb-6 text-center text-gray-700">License Validator</h1>
-         ... (검증 UI 코드) ...
-      </div>
-       */}
     </div>
   );
 }
