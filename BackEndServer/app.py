@@ -3,20 +3,22 @@ import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager
-from flask_sse import sse # SSE 임포트 위치 변경 없음
+from flask_sse import SSE # SSE 클래스 직접 임포트
 from datetime import timedelta
 import os
 import sys
 from dotenv import load_dotenv
-import bcrypt # bcrypt 임포트 추가
+import bcrypt
 
 # .env 파일 로드
 load_dotenv()
 
 DATABASE = 'license_db.sqlite'
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
-# ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') # 평문 비밀번호 대신 해시 사용
-ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH') # 해시된 비밀번호 읽기
+ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH')
+
+# SSE 객체 생성 (앱 팩토리 외부)
+sse = SSE()
 
 # --- 데이터베이스 관련 함수 ---
 def get_db():
@@ -27,7 +29,6 @@ def get_db():
 def init_db():
     if not os.path.exists(DATABASE):
         print(f"Creating database: {DATABASE}")
-        # 앱 컨텍스트 없이 DB 초기화 시도 (앱 팩토리 외부)
         try:
             conn = sqlite3.connect(DATABASE)
             cursor = conn.cursor()
@@ -53,7 +54,6 @@ def init_db():
 def create_app():
     app = Flask(__name__)
 
-    # 환경 변수 확인 (앱 생성 시) - ADMIN_PASSWORD_HASH 확인으로 변경
     if not ADMIN_USERNAME or not ADMIN_PASSWORD_HASH:
         print("오류: ADMIN_USERNAME 또는 ADMIN_PASSWORD_HASH 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
         print("BackEndServer/.env 파일을 생성하고 값을 설정하거나 시스템 환경 변수를 설정해주세요.", file=sys.stderr)
@@ -66,7 +66,10 @@ def create_app():
 
     # --- SSE 설정 ---
     app.config["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    app.register_blueprint(sse, url_prefix='/stream') # 블루프린트 등록
+    # app.register_blueprint(sse, url_prefix='/stream') # 블루프린트 등록 대신 init_app 사용
+    sse.init_app(app) # SSE 객체를 앱에 초기화
+    app.register_blueprint(sse.bp, url_prefix='/stream') # SSE 블루프린트 등록 (sse.bp 사용)
+
 
     # --- CORS 설정 ---
     CORS(app)
@@ -127,15 +130,11 @@ def create_app():
     def admin_login():
         username = request.json.get('username', None)
         password = request.json.get('password', None)
-
-        # 비밀번호 해시 비교 로직으로 변경
         if username == ADMIN_USERNAME and password and ADMIN_PASSWORD_HASH and \
            bcrypt.checkpw(password.encode('utf-8'), ADMIN_PASSWORD_HASH.encode('utf-8')):
-            # 비밀번호 일치 시 토큰 발급
             access_token = create_access_token(identity=username)
             return jsonify(access_token=access_token)
         else:
-            # 사용자 이름 또는 비밀번호 불일치
             return jsonify({"msg": "Bad username or password"}), 401
 
     @app.route('/admin/users', methods=['GET'])
@@ -223,15 +222,12 @@ def create_app():
         finally:
             conn.close()
 
-    return app # 생성된 앱 인스턴스 반환
+    return app
 
 # --- 앱 실행 ---
-# Gunicorn이 앱을 찾을 수 있도록 앱 인스턴스를 전역 범위에 생성
 app = create_app()
 
 if __name__ == '__main__':
-    init_db() # DB 초기화는 스크립트 실행 시 한번만
-    # 개발 서버 실행 시에는 create_app()을 다시 호출하지 않고 전역 app 사용
+    init_db()
     print("Starting Flask server (Development)...")
-    # debug=True는 개발 중에만 사용, 실제 배포 시에는 Gunicorn 사용
     app.run(host='0.0.0.0', port=5000, debug=True)
