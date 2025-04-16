@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react'; // useCallback 추가
+import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 
-// 백엔드 API 주소 - .env 파일 또는 환경 변수에서 가져옵니다.
+// 백엔드 API 주소 - .env 파일 또는 환경 변수에서 가져옵니다. (Force re-deploy)
 // 예: VITE_API_URL=http://LicMngServer.dahangis.co.kr
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // 기본값 설정 (개발용)
 
