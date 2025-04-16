@@ -8,13 +8,15 @@ from datetime import timedelta
 import os
 import sys
 from dotenv import load_dotenv
+import bcrypt # bcrypt 임포트 추가
 
 # .env 파일 로드
 load_dotenv()
 
 DATABASE = 'license_db.sqlite'
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
-ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD')
+# ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD') # 평문 비밀번호 대신 해시 사용
+ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH') # 해시된 비밀번호 읽기
 
 # --- 데이터베이스 관련 함수 ---
 def get_db():
@@ -51,9 +53,9 @@ def init_db():
 def create_app():
     app = Flask(__name__)
 
-    # 환경 변수 확인 (앱 생성 시)
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD:
-        print("오류: ADMIN_USERNAME 또는 ADMIN_PASSWORD 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
+    # 환경 변수 확인 (앱 생성 시) - ADMIN_PASSWORD_HASH 확인으로 변경
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD_HASH:
+        print("오류: ADMIN_USERNAME 또는 ADMIN_PASSWORD_HASH 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
         print("BackEndServer/.env 파일을 생성하고 값을 설정하거나 시스템 환경 변수를 설정해주세요.", file=sys.stderr)
         sys.exit(1)
 
@@ -125,10 +127,15 @@ def create_app():
     def admin_login():
         username = request.json.get('username', None)
         password = request.json.get('password', None)
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+
+        # 비밀번호 해시 비교 로직으로 변경
+        if username == ADMIN_USERNAME and password and ADMIN_PASSWORD_HASH and \
+           bcrypt.checkpw(password.encode('utf-8'), ADMIN_PASSWORD_HASH.encode('utf-8')):
+            # 비밀번호 일치 시 토큰 발급
             access_token = create_access_token(identity=username)
             return jsonify(access_token=access_token)
         else:
+            # 사용자 이름 또는 비밀번호 불일치
             return jsonify({"msg": "Bad username or password"}), 401
 
     @app.route('/admin/users', methods=['GET'])
