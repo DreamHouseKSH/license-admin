@@ -4,7 +4,7 @@ import axios from 'axios';
 // 백엔드 API 주소 - .env 파일 또는 환경 변수에서 가져옵니다.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // 기본값 설정 (개발용)
 
-// 날짜 포맷 함수 (간단 예시)
+// 날짜 포맷 함수 (간단 예시) // Re-trigger deploy with updated secret
 function formatDate(dateString) {
   if (!dateString) return '-';
   try {
