@@ -1,10 +1,11 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react'; // useRef 추가
 import axios from 'axios';
+import { fetchEventSource } from '@microsoft/fetch-event-source'; // 라이브러리 임포트
 
 // 백엔드 API 주소 - .env 파일 또는 환경 변수에서 가져옵니다.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // 기본값 설정 (개발용)
 
-// 날짜 포맷 함수 (간단 예시) // Re-trigger deploy with updated secret
+// 날짜 포맷 함수 (간단 예시)
 function formatDate(dateString) {
   if (!dateString) return '-';
   try {
@@ -21,11 +22,11 @@ function formatDate(dateString) {
 
 export default function App() {
   // --- 상태 관리 ---
-  const [allUsers, setAllUsers] = useState([]); // 관리자: 전체 사용자 목록
-  const [computerId, setComputerId] = useState(''); // 검증용 Computer ID 입력
-  const [validationResult, setValidationResult] = useState(null); // 검증 결과
-  const [registerComputerId, setRegisterComputerId] = useState(''); // 등록 요청용 Computer ID 입력
-  const [registrationResult, setRegistrationResult] = useState(null); // 등록 요청 결과
+  const [allUsers, setAllUsers] = useState([]);
+  const [computerId, setComputerId] = useState('');
+  const [validationResult, setValidationResult] = useState(null);
+  const [registerComputerId, setRegisterComputerId] = useState('');
+  const [registrationResult, setRegistrationResult] = useState(null);
 
   // JWT 인증 및 관리자 상태
   const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || null);
@@ -35,15 +36,36 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [adminActionError, setAdminActionError] = useState('');
 
+  // SSE 연결 제어를 위한 AbortController 참조
+  const ctrl = useRef(null); // useRef 사용
+
 
   // --- API 호출 함수 ---
+
+  // 관리자 로그아웃 (useCallback으로 감싸기)
+   const handleAdminLogout = useCallback(() => {
+    setAccessToken(null);
+    localStorage.removeItem('accessToken');
+    setIsLoggedIn(false);
+    setAdminUsername('');
+    setAdminPassword('');
+    setAllUsers([]);
+    setLoginError('');
+    setAdminActionError('');
+    // SSE 연결 중단
+    if (ctrl.current) {
+      ctrl.current.abort();
+      ctrl.current = null; // 참조 초기화
+      console.log("SSE stream aborted on logout.");
+    }
+  }, []); // 빈 의존성 배열
 
   // 관리자: 모든 사용자 목록 가져오기
   const fetchAllUsers = useCallback(async () => {
     if (!accessToken) return;
     setAdminActionError('');
     try {
-      console.log("Fetching all users..."); // SSE 디버깅용 로그
+      console.log("Fetching all users...");
       const res = await axios.get(`${API_URL}/admin/users`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
@@ -53,12 +75,12 @@ export default function App() {
       setAllUsers([]);
       if (error.response && (error.response.status === 401 || error.response.status === 422)) {
         setAdminActionError('인증 실패 또는 토큰 만료. 다시 로그인해주세요.');
-        handleAdminLogout(); // handleAdminLogout을 직접 호출
+        handleAdminLogout();
       } else {
         setAdminActionError('사용자 목록을 가져오는데 실패했습니다.');
       }
     }
-  }, [accessToken]); // handleAdminLogout 의존성 제거
+  }, [accessToken, handleAdminLogout]); // handleAdminLogout 의존성 추가
 
   // 관리자: 요청 처리 (승인/거절)
   const handleAction = async (id, action) => {
@@ -69,12 +91,12 @@ export default function App() {
         { action: action },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      // fetchAllUsers(); // SSE가 업데이트하므로 여기서 호출 제거 가능 (선택 사항)
+      // SSE가 업데이트하므로 여기서 fetchAllUsers 호출 불필요
     } catch (error) {
       console.error(`작업 처리 오류 (${action}, ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
         setAdminActionError('인증 실패 또는 토큰 만료. 다시 로그인해주세요.');
-        handleAdminLogout(); // handleAdminLogout을 직접 호출
+        handleAdminLogout();
       } else if (error.response && error.response.status === 404) {
          setAdminActionError(`요청 ID ${id}를 찾을 수 없거나 이미 처리되었습니다.`);
       } else {
@@ -94,12 +116,12 @@ export default function App() {
       await axios.delete(`${API_URL}/admin/user/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
-      // fetchAllUsers(); // SSE가 업데이트하므로 여기서 호출 제거 가능 (선택 사항)
+       // SSE가 업데이트하므로 여기서 fetchAllUsers 호출 불필요
     } catch (error) {
       console.error(`사용자 삭제 오류 (ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
         setAdminActionError('인증 실패 또는 토큰 만료. 다시 로그인해주세요.');
-        handleAdminLogout(); // handleAdminLogout을 직접 호출
+        handleAdminLogout();
       } else if (error.response && error.response.status === 404) {
          setAdminActionError(`사용자 ID ${id}를 찾을 수 없습니다.`);
       } else {
@@ -134,18 +156,6 @@ export default function App() {
       setIsLoggedIn(false);
     }
   };
-
-  // 관리자 로그아웃
-  const handleAdminLogout = useCallback(() => { // useCallback으로 감싸기 (useEffect 의존성 문제 방지)
-    setAccessToken(null);
-    localStorage.removeItem('accessToken');
-    setIsLoggedIn(false);
-    setAdminUsername('');
-    setAdminPassword('');
-    setAllUsers([]);
-    setLoginError('');
-    setAdminActionError('');
-  }, []); // 빈 의존성 배열
 
   // 연습용: 등록 요청
   const handleRegister = async (e) => {
@@ -200,55 +210,79 @@ export default function App() {
 
   // --- useEffect 훅 ---
   useEffect(() => {
-    let eventSource = null; // EventSource 인스턴스 저장 변수
+    // AbortController 인스턴스 생성
+    ctrl.current = new AbortController();
 
-    if (isLoggedIn) {
+    if (isLoggedIn && accessToken) { // accessToken도 확인
       // 로그인 시 사용자 목록 즉시 로드
       fetchAllUsers();
 
-      // SSE 연결 설정
-      console.log("Connecting to SSE stream..."); // SSE 디버깅용 로그
-      // EventSource는 GET 요청만 지원하며, JWT 토큰을 헤더에 직접 넣을 수 없음.
-      // 토큰을 쿼리 파라미터로 전달 (백엔드에서 처리 필요) 또는 다른 인증 방식 고려 필요.
-      // 여기서는 일단 토큰 없이 연결 시도 (백엔드 /stream 엔드포인트가 인증을 요구하지 않는다고 가정)
-      // 또는, 백엔드 /stream 엔드포인트에서 쿠키 기반 인증 등을 사용하도록 수정 필요.
-      // **임시 방편: 토큰 없이 연결** (실제 운영 시 보안 강화 필요)
-      eventSource = new EventSource(`${API_URL}/stream`);
-
-      // 'update' 타입의 메시지 수신 리스너
-      eventSource.addEventListener('update', (event) => {
-        console.log("SSE update event received:", event.data); // SSE 디버깅용 로그
-        // 메시지 수신 시 사용자 목록 새로고침
-        fetchAllUsers();
+      // SSE 연결 설정 (fetchEventSource 사용)
+      console.log("Connecting to SSE stream with fetchEventSource...");
+      fetchEventSource(`${API_URL}/stream`, {
+        headers: { // 헤더에 Authorization 추가
+          'Authorization': `Bearer ${accessToken}`
+        },
+        signal: ctrl.current.signal, // AbortController의 signal 전달
+        onopen(response) {
+          if (response.ok && response.headers.get('content-type') === 'text/event-stream') {
+            console.log("SSE connection established"); // 연결 성공
+            setAdminActionError(''); // 이전 오류 메시지 제거
+            return; // 연결 유지
+          } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
+             console.error("SSE Client-side error:", response.status, response.statusText);
+             setAdminActionError("실시간 업데이트 연결 실패 (클라이언트 오류).");
+             handleAdminLogout(); // 인증 문제 등으로 간주하고 로그아웃
+             throw new Error(`Client error: ${response.status}`); // 에러 발생시켜 onclose 트리거
+          } else {
+             console.error("SSE Server-side error:", response.status, response.statusText);
+             setAdminActionError("실시간 업데이트 연결 실패 (서버 오류).");
+             throw new Error(`Server error: ${response.status}`); // 에러 발생시켜 onclose 트리거
+          }
+        },
+        onmessage(event) {
+          // 'update' 타입의 이벤트만 처리 (백엔드에서 type='update'로 발행)
+          if (event.event === 'update') {
+             console.log("SSE update event received:", event.data);
+             fetchAllUsers(); // 사용자 목록 새로고침
+          } else {
+             console.log("SSE message received (other type):", event);
+          }
+        },
+        onerror(err) {
+          console.error("SSE Error:", err);
+          setAdminActionError("실시간 업데이트 연결 오류 발생.");
+          // 라이브러리가 자동으로 재연결 시도할 수 있음. 필요시 여기서 연결 중단.
+          // throw err; // 에러를 다시 던져서 연결 중단 및 onclose 호출
+        },
+        onclose() {
+           console.log("SSE connection closed.");
+           // 서버가 연결을 닫았거나 에러 발생 시. 필요시 재연결 로직 추가 가능.
+           // 단, 로그아웃 시에는 ctrl.current.abort()로 닫히므로 여기서 특별한 처리 불필요.
+        }
       });
 
-      // 오류 처리 리스너
-      eventSource.onerror = (error) => {
-        console.error("SSE Error:", error);
-        // 오류 발생 시 연결을 닫을 수 있음 (필요에 따라 재연결 로직 추가 가능)
-        eventSource.close();
-        setAdminActionError("실시간 업데이트 연결 오류 발생."); // 사용자에게 알림
-      };
-
     } else {
-      // 로그아웃 시 기존 EventSource 연결 닫기
-      if (eventSource) {
-        console.log("Closing SSE stream..."); // SSE 디버깅용 로그
-        eventSource.close();
-      }
+       // 로그아웃 상태이거나 토큰이 없으면 연결 시도 안 함
+       if (ctrl.current) {
+         ctrl.current.abort(); // 혹시 모를 이전 연결 중단
+         ctrl.current = null;
+       }
     }
 
-    // 컴포넌트 언마운트 시 또는 isLoggedIn 변경 시 정리 함수
+    // 컴포넌트 언마운트 시 또는 isLoggedIn/accessToken 변경 시 정리 함수
     return () => {
-      if (eventSource) {
-        console.log("Closing SSE stream on unmount/logout..."); // SSE 디버깅용 로그
-        eventSource.close();
+      console.log("Cleaning up SSE connection...");
+      if (ctrl.current) {
+        ctrl.current.abort(); // AbortController를 사용하여 연결 중단
+        ctrl.current = null;
       }
     };
-  }, [isLoggedIn, fetchAllUsers, handleAdminLogout]); // handleAdminLogout 추가
+  }, [isLoggedIn, accessToken, fetchAllUsers, handleAdminLogout]); // accessToken 의존성 추가
 
 
   // --- 렌더링 ---
+  // ... (나머지 렌더링 코드는 이전과 동일) ...
   return (
     <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center space-y-8">
 
