@@ -26,3 +26,6 @@ dist-ssr
 
 # Ignore backend env file
 BackEndServer/.env
+
+# Ignore backend database file
+BackEndServer/license_db.sqlite
