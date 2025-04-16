@@ -14,7 +14,7 @@ function formatDate(dateString) {
       hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
     });
   } catch (error) {
-    console.error("Error formatting date:", dateString, error);
+    console.error("날짜 포맷 오류:", dateString, error);
     return dateString;
   }
 }
@@ -43,21 +43,22 @@ export default function App() {
     if (!accessToken) return;
     setAdminActionError('');
     try {
+      console.log("Fetching all users..."); // SSE 디버깅용 로그
       const res = await axios.get(`${API_URL}/admin/users`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
       setAllUsers(res.data || []);
     } catch (error) {
-      console.error("Error fetching all users:", error);
+      console.error("전체 사용자 목록 가져오기 오류:", error);
       setAllUsers([]);
       if (error.response && (error.response.status === 401 || error.response.status === 422)) {
-        setAdminActionError('Authentication failed or token expired. Please log in again.');
-        handleAdminLogout();
+        setAdminActionError('인증 실패 또는 토큰 만료. 다시 로그인해주세요.');
+        handleAdminLogout(); // handleAdminLogout을 직접 호출
       } else {
-        setAdminActionError('Failed to fetch user list.');
+        setAdminActionError('사용자 목록을 가져오는데 실패했습니다.');
       }
     }
-  }, [accessToken]);
+  }, [accessToken]); // handleAdminLogout 의존성 제거
 
   // 관리자: 요청 처리 (승인/거절)
   const handleAction = async (id, action) => {
@@ -68,16 +69,16 @@ export default function App() {
         { action: action },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      fetchAllUsers();
+      // fetchAllUsers(); // SSE가 업데이트하므로 여기서 호출 제거 가능 (선택 사항)
     } catch (error) {
-      console.error(`Error processing action ${action} for ${id}:`, error);
+      console.error(`작업 처리 오류 (${action}, ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
-        setAdminActionError('Authentication failed or token expired. Please log in again.');
-        handleAdminLogout();
+        setAdminActionError('인증 실패 또는 토큰 만료. 다시 로그인해주세요.');
+        handleAdminLogout(); // handleAdminLogout을 직접 호출
       } else if (error.response && error.response.status === 404) {
-         setAdminActionError(`Request ${id} not found or already processed.`);
+         setAdminActionError(`요청 ID ${id}를 찾을 수 없거나 이미 처리되었습니다.`);
       } else {
-        setAdminActionError(`Failed to process action ${action} for request ${id}.`);
+        setAdminActionError(`요청 ID ${id}에 대한 작업(${action}) 처리에 실패했습니다.`);
       }
     }
   };
@@ -85,7 +86,7 @@ export default function App() {
   // 관리자: 사용자 삭제
   const handleDelete = async (id) => {
     if (!accessToken) return;
-    if (!window.confirm(`Are you sure you want to delete user ID ${id}? This action cannot be undone.`)) {
+    if (!window.confirm(`사용자 ID ${id}를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
     setAdminActionError('');
@@ -93,16 +94,16 @@ export default function App() {
       await axios.delete(`${API_URL}/admin/user/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
-      fetchAllUsers();
+      // fetchAllUsers(); // SSE가 업데이트하므로 여기서 호출 제거 가능 (선택 사항)
     } catch (error) {
-      console.error(`Error deleting user ${id}:`, error);
+      console.error(`사용자 삭제 오류 (ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
-        setAdminActionError('Authentication failed or token expired. Please log in again.');
-        handleAdminLogout();
+        setAdminActionError('인증 실패 또는 토큰 만료. 다시 로그인해주세요.');
+        handleAdminLogout(); // handleAdminLogout을 직접 호출
       } else if (error.response && error.response.status === 404) {
-         setAdminActionError(`User ${id} not found.`);
+         setAdminActionError(`사용자 ID ${id}를 찾을 수 없습니다.`);
       } else {
-        setAdminActionError(`Failed to delete user ${id}.`);
+        setAdminActionError(`사용자 ID ${id} 삭제에 실패했습니다.`);
       }
     }
   };
@@ -122,11 +123,11 @@ export default function App() {
       setIsLoggedIn(true);
       setAdminPassword('');
     } catch (error) {
-      console.error("Admin login failed:", error);
+      console.error("관리자 로그인 실패:", error);
       if (error.response && error.response.status === 401) {
-        setLoginError('Invalid username or password.');
+        setLoginError('잘못된 사용자 이름 또는 비밀번호입니다.');
       } else {
-        setLoginError('Login failed. Could not connect to the server or other error.');
+        setLoginError('로그인 실패. 서버에 연결할 수 없거나 다른 오류가 발생했습니다.');
       }
       setAccessToken(null);
       localStorage.removeItem('accessToken');
@@ -135,7 +136,7 @@ export default function App() {
   };
 
   // 관리자 로그아웃
-  const handleAdminLogout = () => {
+  const handleAdminLogout = useCallback(() => { // useCallback으로 감싸기 (useEffect 의존성 문제 방지)
     setAccessToken(null);
     localStorage.removeItem('accessToken');
     setIsLoggedIn(false);
@@ -144,13 +145,13 @@ export default function App() {
     setAllUsers([]);
     setLoginError('');
     setAdminActionError('');
-  };
+  }, []); // 빈 의존성 배열
 
   // 연습용: 등록 요청
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!registerComputerId) {
-      setRegistrationResult({ error: 'Please enter a Computer ID to register.' });
+      setRegistrationResult({ error: '등록할 컴퓨터 ID를 입력해주세요.' });
       return;
     }
     setRegistrationResult(null);
@@ -159,26 +160,25 @@ export default function App() {
         computer_id: registerComputerId,
       });
       setRegistrationResult({ success: res.data.message });
-      setRegisterComputerId(''); // 성공 시 입력 필드 초기화
+      setRegisterComputerId('');
     } catch (error) {
-      console.error("Registration request error:", error);
+      console.error("등록 요청 오류:", error);
       if (error.response && error.response.data && error.response.data.error) {
          setRegistrationResult({ error: error.response.data.error });
       } else if (error.response && error.response.data && error.response.data.message) {
-         // 백엔드에서 성공(200)이지만 메시지가 오는 경우 (이미 등록됨)
          setRegistrationResult({ success: error.response.data.message });
       }
       else {
-        setRegistrationResult({ error: 'An error occurred during registration request.' });
+        setRegistrationResult({ error: '등록 요청 중 오류가 발생했습니다.' });
       }
     }
   };
 
   // 연습용: 상태 확인
   const handleValidate = async (e) => {
-     e.preventDefault(); // 폼 제출 방지 추가
+     e.preventDefault();
     if (!computerId) {
-      setValidationResult({ error: 'Please enter a Computer ID.' });
+      setValidationResult({ error: '확인할 컴퓨터 ID를 입력해주세요.' });
       return;
     }
     setValidationResult(null);
@@ -188,11 +188,11 @@ export default function App() {
       });
       setValidationResult({ status: res.data.status });
     } catch (error) {
-      console.error("Validation error:", error);
+      console.error("상태 확인 오류:", error);
       if (error.response && error.response.status === 404) {
         setValidationResult({ status: 'Not Found' });
       } else {
-        setValidationResult({ error: 'An error occurred during validation.' });
+        setValidationResult({ error: '상태 확인 중 오류가 발생했습니다.' });
       }
     }
   };
@@ -200,10 +200,52 @@ export default function App() {
 
   // --- useEffect 훅 ---
   useEffect(() => {
+    let eventSource = null; // EventSource 인스턴스 저장 변수
+
     if (isLoggedIn) {
+      // 로그인 시 사용자 목록 즉시 로드
       fetchAllUsers();
+
+      // SSE 연결 설정
+      console.log("Connecting to SSE stream..."); // SSE 디버깅용 로그
+      // EventSource는 GET 요청만 지원하며, JWT 토큰을 헤더에 직접 넣을 수 없음.
+      // 토큰을 쿼리 파라미터로 전달 (백엔드에서 처리 필요) 또는 다른 인증 방식 고려 필요.
+      // 여기서는 일단 토큰 없이 연결 시도 (백엔드 /stream 엔드포인트가 인증을 요구하지 않는다고 가정)
+      // 또는, 백엔드 /stream 엔드포인트에서 쿠키 기반 인증 등을 사용하도록 수정 필요.
+      // **임시 방편: 토큰 없이 연결** (실제 운영 시 보안 강화 필요)
+      eventSource = new EventSource(`${API_URL}/stream`);
+
+      // 'update' 타입의 메시지 수신 리스너
+      eventSource.addEventListener('update', (event) => {
+        console.log("SSE update event received:", event.data); // SSE 디버깅용 로그
+        // 메시지 수신 시 사용자 목록 새로고침
+        fetchAllUsers();
+      });
+
+      // 오류 처리 리스너
+      eventSource.onerror = (error) => {
+        console.error("SSE Error:", error);
+        // 오류 발생 시 연결을 닫을 수 있음 (필요에 따라 재연결 로직 추가 가능)
+        eventSource.close();
+        setAdminActionError("실시간 업데이트 연결 오류 발생."); // 사용자에게 알림
+      };
+
+    } else {
+      // 로그아웃 시 기존 EventSource 연결 닫기
+      if (eventSource) {
+        console.log("Closing SSE stream..."); // SSE 디버깅용 로그
+        eventSource.close();
+      }
     }
-  }, [isLoggedIn, fetchAllUsers]);
+
+    // 컴포넌트 언마운트 시 또는 isLoggedIn 변경 시 정리 함수
+    return () => {
+      if (eventSource) {
+        console.log("Closing SSE stream on unmount/logout..."); // SSE 디버깅용 로그
+        eventSource.close();
+      }
+    };
+  }, [isLoggedIn, fetchAllUsers, handleAdminLogout]); // handleAdminLogout 추가
 
 
   // --- 렌더링 ---
@@ -220,23 +262,22 @@ export default function App() {
         )}
       </div>
 
-      {/* --- 연습용 기능 섹션 (로그아웃 상태에서만 보임) --- */}
-      {!isLoggedIn && (
-        <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-8">
+      {/* --- 연습용 기능 섹션 (항상 보임) --- */}
+      <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
           {/* 연습용 등록 요청 */}
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-4 text-gray-700">Request Registration (Practice)</h3>
+            <h3 className="text-xl font-semibold mb-4 text-gray-700">등록 요청 (연습용)</h3>
             <form onSubmit={handleRegister}>
               <div className="mb-4">
                 <label htmlFor="registerComputerId" className="block text-sm font-medium text-gray-600 mb-1">
-                  Computer ID:
+                  컴퓨터 ID:
                 </label>
                 <input
                   type="text"
                   id="registerComputerId"
                   value={registerComputerId}
                   onChange={(e) => setRegisterComputerId(e.target.value)}
-                  placeholder="Enter Computer ID to register"
+                  placeholder="등록할 컴퓨터 ID 입력"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
@@ -244,11 +285,11 @@ export default function App() {
                 type="submit"
                 className="w-full px-4 py-2 bg-green-600 text-white font-semibold rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
               >
-                Request
+                요청
               </button>
               {registrationResult && (
                 <div className={`mt-4 p-2 rounded-md text-sm text-center ${registrationResult.error ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                  {registrationResult.error ? `Error: ${registrationResult.error}` : registrationResult.success}
+                  {registrationResult.error ? `오류: ${registrationResult.error}` : registrationResult.success}
                 </div>
               )}
             </form>
@@ -256,18 +297,18 @@ export default function App() {
 
           {/* 연습용 상태 확인 */}
           <div className="bg-white p-6 rounded-lg shadow-md">
-            <h3 className="text-xl font-semibold mb-4 text-gray-700">Check Status (Practice)</h3>
+            <h3 className="text-xl font-semibold mb-4 text-gray-700">상태 확인 (연습용)</h3>
              <form onSubmit={handleValidate}>
                 <div className="mb-4">
                   <label htmlFor="checkComputerId" className="block text-sm font-medium text-gray-600 mb-1">
-                    Computer ID:
+                    컴퓨터 ID:
                   </label>
                   <input
                     type="text"
                     id="checkComputerId"
                     value={computerId}
                     onChange={(e) => setComputerId(e.target.value)}
-                    placeholder="Enter Computer ID to check"
+                    placeholder="확인할 컴퓨터 ID 입력"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                   />
                 </div>
@@ -275,29 +316,27 @@ export default function App() {
                   type="submit"
                   className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
-                  Check Status
+                  상태 확인
                 </button>
                 {validationResult && (
-                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === 'Approved' ? 'bg-green-100 text-green-700' : validationResult.status === 'Rejected' ? 'bg-red-100 text-red-700' : validationResult.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-gray-100 text-gray-800'}`}>
-                    {validationResult.error ? `Error: ${validationResult.error}` : `Status: ${validationResult.status}`}
+                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === 'Approved' ? 'bg-green-100 text-green-700' : validationResult.status === 'Rejected' ? 'bg-red-100 text-red-700' : validationResult.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : validationResult.status === 'Not Found' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {validationResult.error ? `오류: ${validationResult.error}` : `상태: ${validationResult.status}`}
                   </div>
                 )}
              </form>
           </div>
-        </div>
-      )}
+      </div>
 
 
       {/* --- 관리자 섹션 (로그인 폼 또는 관리 패널) --- */}
       <div className="w-full max-w-4xl bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">Admin Panel</h2>
+        <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 패널</h2>
 
         {!isLoggedIn ? (
           // --- 관리자 로그인 폼 ---
           <form onSubmit={handleAdminLogin} className="max-w-sm mx-auto">
-            {/* ... (로그인 폼 내용은 이전과 동일) ... */}
              <div className="mb-4">
-              <label htmlFor="adminUser" className="block text-sm font-medium text-gray-600 mb-1">Username:</label>
+              <label htmlFor="adminUser" className="block text-sm font-medium text-gray-600 mb-1">사용자 이름:</label>
               <input
                 type="text"
                 id="adminUser"
@@ -309,7 +348,7 @@ export default function App() {
               />
             </div>
             <div className="mb-6">
-              <label htmlFor="adminPass" className="block text-sm font-medium text-gray-600 mb-1">Password:</label>
+              <label htmlFor="adminPass" className="block text-sm font-medium text-gray-600 mb-1">비밀번호:</label>
               <input
                 type="password"
                 id="adminPass"
@@ -327,24 +366,23 @@ export default function App() {
               type="submit"
               className="w-full px-4 py-2 bg-indigo-600 text-white font-semibold rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
-              Admin Login
+              관리자 로그인
             </button>
           </form>
         ) : (
           // --- 관리자 기능 UI (로그인 시 보임) ---
           <div>
-            {/* ... (로그아웃 버튼 및 사용자 테이블 내용은 이전과 동일) ... */}
              <div className="flex justify-between items-center mb-6">
-              <p className="text-green-600 font-semibold">Admin Logged In</p>
+              <p className="text-green-600 font-semibold">관리자 로그인됨</p>
               <button
                 onClick={handleAdminLogout}
                 className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
               >
-                Logout
+                로그아웃
               </button>
             </div>
 
-            <h3 className="text-xl font-bold mb-4 text-gray-700">Registered Users</h3>
+            <h3 className="text-xl font-bold mb-4 text-gray-700">등록된 사용자</h3>
             {adminActionError && (
               <p className="text-red-600 text-sm mb-4 text-center">{adminActionError}</p>
             )}
@@ -353,12 +391,12 @@ export default function App() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Computer ID</th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Requested</th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Approved/Rejected</th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
-                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">컴퓨터 ID</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">상태</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">요청 시간</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">승인/거절 시간</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">메모</th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작업</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -389,32 +427,32 @@ export default function App() {
                               <button
                                 onClick={() => handleAction(user.id, 'Approve')}
                                 className="text-indigo-600 hover:text-indigo-900"
-                                title="Approve"
+                                title="승인"
                               >
-                                Approve
+                                승인
                               </button>
                               <button
                                 onClick={() => handleAction(user.id, 'Reject')}
                                 className="text-yellow-600 hover:text-yellow-900"
-                                title="Reject"
+                                title="거절"
                               >
-                                Reject
+                                거절
                               </button>
                             </>
                           )}
                            <button
                             onClick={() => handleDelete(user.id)}
                             className="text-red-600 hover:text-red-900"
-                            title="Delete"
+                            title="삭제"
                           >
-                            Delete
+                            삭제
                           </button>
                         </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">No users found.</td>
+                      <td colSpan="7" className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">사용자를 찾을 수 없습니다.</td>
                     </tr>
                   )}
                 </tbody>
