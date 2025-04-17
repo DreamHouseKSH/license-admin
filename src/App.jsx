@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'; // useRef 추가
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-import { fetchEventSource } from '@microsoft/fetch-event-source'; // 라이브러리 임포트
+// import { fetchEventSource } from '@microsoft/fetch-event-source'; // SSE 라이브러리 제거
+import io from 'socket.io-client'; // socket.io-client 임포트
 
 // 백엔드 API 주소 - .env 파일 또는 환경 변수에서 가져옵니다.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // 기본값 설정 (개발용)
@@ -36,13 +37,13 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
   const [adminActionError, setAdminActionError] = useState('');
 
-  // SSE 연결 제어를 위한 AbortController 참조
-  const ctrl = useRef(null); // useRef 사용
+  // Socket.IO 인스턴스 참조
+  const socketRef = useRef(null);
 
 
   // --- API 호출 함수 ---
 
-  // 관리자 로그아웃 (useCallback으로 감싸기)
+   // 관리자 로그아웃 (useCallback으로 감싸기)
    const handleAdminLogout = useCallback(() => {
     setAccessToken(null);
     localStorage.removeItem('accessToken');
@@ -52,11 +53,11 @@ export default function App() {
     setAllUsers([]);
     setLoginError('');
     setAdminActionError('');
-    // SSE 연결 중단
-    if (ctrl.current) {
-      ctrl.current.abort();
-      ctrl.current = null; // 참조 초기화
-      console.log("SSE stream aborted on logout.");
+    // 웹소켓 연결 해제
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
+      console.log("WebSocket disconnected on logout.");
     }
   }, []); // 빈 의존성 배열
 
@@ -80,7 +81,7 @@ export default function App() {
         setAdminActionError('사용자 목록을 가져오는데 실패했습니다.');
       }
     }
-  }, [accessToken, handleAdminLogout]); // handleAdminLogout 의존성 추가
+  }, [accessToken, handleAdminLogout]);
 
   // 관리자: 요청 처리 (승인/거절)
   const handleAction = async (id, action) => {
@@ -91,7 +92,7 @@ export default function App() {
         { action: action },
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      // SSE가 업데이트하므로 여기서 fetchAllUsers 호출 불필요
+      // 웹소켓이 업데이트하므로 여기서 fetchAllUsers 호출 불필요
     } catch (error) {
       console.error(`작업 처리 오류 (${action}, ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
@@ -116,7 +117,7 @@ export default function App() {
       await axios.delete(`${API_URL}/admin/user/${id}`, {
         headers: { Authorization: `Bearer ${accessToken}` }
       });
-       // SSE가 업데이트하므로 여기서 fetchAllUsers 호출 불필요
+       // 웹소켓이 업데이트하므로 여기서 fetchAllUsers 호출 불필요
     } catch (error) {
       console.error(`사용자 삭제 오류 (ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
@@ -210,80 +211,73 @@ export default function App() {
 
   // --- useEffect 훅 ---
   useEffect(() => {
-    // AbortController 인스턴스 생성
-    ctrl.current = new AbortController();
-
-    if (isLoggedIn && accessToken) { // accessToken도 확인
+    if (isLoggedIn && accessToken) {
       // 로그인 시 사용자 목록 즉시 로드
       fetchAllUsers();
 
-      // SSE 연결 설정 (fetchEventSource 사용)
-      console.log("Connecting to SSE stream with fetchEventSource...");
-      fetchEventSource(`${API_URL}/stream`, {
-        headers: { // 헤더에 Authorization 추가
-          'Authorization': `Bearer ${accessToken}`
+      // 웹소켓 연결 설정
+      // Socket.IO 서버 주소는 일반적으로 API 주소와 동일 (경로는 자동으로 /socket.io 사용)
+      // 인증 토큰은 auth 옵션을 통해 전달
+      console.log("Connecting to WebSocket...");
+      socketRef.current = io(API_URL, {
+        auth: {
+          token: accessToken
         },
-        signal: ctrl.current.signal, // AbortController의 signal 전달
-        onopen(response) {
-          if (response.ok && response.headers.get('content-type') === 'text/event-stream') {
-            console.log("SSE connection established"); // 연결 성공
-            setAdminActionError(''); // 이전 오류 메시지 제거
-            return; // 연결 유지
-          } else if (response.status >= 400 && response.status < 500 && response.status !== 429) {
-             console.error("SSE Client-side error:", response.status, response.statusText);
-             setAdminActionError("실시간 업데이트 연결 실패 (클라이언트 오류).");
-             handleAdminLogout(); // 인증 문제 등으로 간주하고 로그아웃
-             throw new Error(`Client error: ${response.status}`); // 에러 발생시켜 onclose 트리거
-          } else {
-             console.error("SSE Server-side error:", response.status, response.statusText);
-             setAdminActionError("실시간 업데이트 연결 실패 (서버 오류).");
-             throw new Error(`Server error: ${response.status}`); // 에러 발생시켜 onclose 트리거
-          }
-        },
-        onmessage(event) {
-          // 'update' 타입의 이벤트만 처리 (백엔드에서 type='update'로 발행)
-          if (event.event === 'update') {
-             console.log("SSE update event received:", event.data);
-             fetchAllUsers(); // 사용자 목록 새로고침
-          } else {
-             console.log("SSE message received (other type):", event);
-          }
-        },
-        onerror(err) {
-          console.error("SSE Error:", err);
-          setAdminActionError("실시간 업데이트 연결 오류 발생.");
-          // 라이브러리가 자동으로 재연결 시도할 수 있음. 필요시 여기서 연결 중단.
-          // throw err; // 에러를 다시 던져서 연결 중단 및 onclose 호출
-        },
-        onclose() {
-           console.log("SSE connection closed.");
-           // 서버가 연결을 닫았거나 에러 발생 시. 필요시 재연결 로직 추가 가능.
-           // 단, 로그아웃 시에는 ctrl.current.abort()로 닫히므로 여기서 특별한 처리 불필요.
+        // transports: ['websocket'] // 필요시 특정 전송 방식 강제
+      });
+
+      // 연결 성공 이벤트
+      socketRef.current.on('connect', () => {
+        console.log('WebSocket connected:', socketRef.current.id);
+        setAdminActionError(''); // 연결 성공 시 오류 메시지 제거
+      });
+
+      // 연결 끊김 이벤트
+      socketRef.current.on('disconnect', (reason) => {
+        console.log('WebSocket disconnected:', reason);
+        // 서버 측에서 연결을 끊었거나 네트워크 문제 발생 시
+        // 필요하다면 여기서 로그아웃 처리 또는 재연결 시도 로직 추가
+        // setAdminActionError("실시간 연결 끊김.");
+      });
+
+      // 연결 오류 이벤트
+      socketRef.current.on('connect_error', (err) => {
+        console.error('WebSocket connection error:', err.message);
+        setAdminActionError(`실시간 연결 오류: ${err.message}`);
+        // 인증 실패(401) 등 특정 오류 시 로그아웃 처리 가능
+        if (err.message.includes('Unauthorized') || err.message.includes('401')) {
+           handleAdminLogout();
         }
       });
 
+      // 'update_user_list' 이벤트 수신 리스너 (백엔드에서 emit하는 이벤트 이름)
+      socketRef.current.on('update_user_list', (data) => {
+        console.log('WebSocket update_user_list event received:', data);
+        fetchAllUsers(); // 사용자 목록 새로고침
+      });
+
     } else {
-       // 로그아웃 상태이거나 토큰이 없으면 연결 시도 안 함
-       if (ctrl.current) {
-         ctrl.current.abort(); // 혹시 모를 이전 연결 중단
-         ctrl.current = null;
-       }
+      // 로그아웃 상태이거나 토큰이 없으면 연결 해제
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
     }
 
     // 컴포넌트 언마운트 시 또는 isLoggedIn/accessToken 변경 시 정리 함수
     return () => {
-      console.log("Cleaning up SSE connection...");
-      if (ctrl.current) {
-        ctrl.current.abort(); // AbortController를 사용하여 연결 중단
-        ctrl.current = null;
+      console.log("Cleaning up WebSocket connection...");
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
       }
     };
-  }, [isLoggedIn, accessToken, fetchAllUsers, handleAdminLogout]); // accessToken 의존성 추가
+  }, [isLoggedIn, accessToken, fetchAllUsers, handleAdminLogout]);
 
 
   // --- 렌더링 ---
   // ... (나머지 렌더링 코드는 이전과 동일) ...
-  return (
+   return (
     <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center space-y-8">
 
       {/* --- 랜딩 페이지 내용 --- */}
