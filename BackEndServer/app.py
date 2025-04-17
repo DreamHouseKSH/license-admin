@@ -5,7 +5,7 @@ eventlet.monkey_patch()
 import sqlite3
 import json
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+from flask_cors import CORS # CORS 임포트 확인
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager
 from flask_socketio import SocketIO, emit
 from datetime import timedelta
@@ -22,9 +22,11 @@ ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
 ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH')
 
 # SocketIO 객체 생성
-socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet') # async_mode를 eventlet으로 유지
+# cors_allowed_origins는 SocketIO 연결에만 적용될 수 있음
+socketio = SocketIO(async_mode='eventlet') # CORS 설정은 Flask-Cors에서 처리하도록 제거
 
 # --- 데이터베이스 관련 함수 ---
+# ... (이전과 동일) ...
 def get_db():
     conn = sqlite3.connect(DATABASE)
     conn.row_factory = sqlite3.Row
@@ -63,21 +65,21 @@ def create_app():
         print("BackEndServer/.env 파일을 생성하고 값을 설정하거나 시스템 환경 변수를 설정해주세요.", file=sys.stderr)
         sys.exit(1)
 
+    # --- CORS 설정 (Flask-Cors 사용) ---
+    # 모든 출처(*)에서 모든 경로(/api/* 등)에 대해 필요한 헤더(Authorization 등)와 메서드(POST, GET, DELETE 등) 허용
+    # 실제 운영 시에는 origins=["https://DreamHouseKSH.github.io"] 와 같이 특정 출처만 지정하는 것이 더 안전
+    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True) # 모든 경로에 CORS 적용
+
     # --- JWT 설정 ---
     app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-dev-key")
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
     jwt = JWTManager(app)
 
     # --- SocketIO 초기화 ---
-    # Redis URL 설정은 SocketIO가 여러 워커 간 통신 시 필요할 수 있으나,
-    # eventlet/gevent 단일 프로세스 또는 워커 환경에서는 필수는 아님.
-    # app.config["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
-    socketio.init_app(app) # SocketIO 객체를 앱에 초기화
-
-    # --- CORS 설정 ---
-    # CORS(app) # SocketIO 생성 시 cors_allowed_origins 설정으로 대체
+    socketio.init_app(app)
 
     # --- 라우트 정의 ---
+    # ... (라우트 정의는 이전과 동일) ...
     @app.route('/register', methods=['POST'])
     def register_computer():
         conn = get_db()
@@ -228,9 +230,6 @@ def create_app():
     # --- SocketIO 이벤트 핸들러 ---
     @socketio.on('connect')
     def handle_connect():
-        # 여기서는 JWT 토큰 검증을 추가할 수 있습니다.
-        # 예: auth = request.args.get('token') 또는 request.headers.get('Authorization')
-        # Flask-SocketIO 문서의 인증 섹션 참조
         print('Client connected')
 
     @socketio.on('disconnect')
@@ -245,6 +244,4 @@ app = create_app()
 if __name__ == '__main__':
     init_db()
     print("Starting Flask-SocketIO server (Development)...")
-    # 개발 시에는 socketio.run 사용
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, use_reloader=False)
-    # Gunicorn 배포 시에는 systemd 서비스 파일에서 Gunicorn 실행
