@@ -1,27 +1,28 @@
+# eventlet 몽키 패치를 다른 임포트보다 먼저 수행!
+import eventlet
+eventlet.monkey_patch()
+
 import sqlite3
 import json
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import create_access_token, jwt_required, JWTManager
-# from flask_sse import SSE # SSE 제거 확인
-from flask_socketio import SocketIO, emit # SocketIO 임포트 확인
+from flask_socketio import SocketIO, emit
 from datetime import timedelta
 import os
 import sys
 from dotenv import load_dotenv
 import bcrypt
-import eventlet # eventlet 또는 gevent 임포트 확인
-eventlet.monkey_patch() # 비동기 호환성 패치 확인
 
 # .env 파일 로드
 load_dotenv()
 
 DATABASE = 'license_db.sqlite'
 ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME')
-ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH') # 해시된 비밀번호 사용 확인
+ADMIN_PASSWORD_HASH = os.environ.get('ADMIN_PASSWORD_HASH')
 
-# SocketIO 객체 생성 확인
-socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet') # 비동기 모드 확인
+# SocketIO 객체 생성
+socketio = SocketIO(cors_allowed_origins="*", async_mode='eventlet') # async_mode를 eventlet으로 유지
 
 # --- 데이터베이스 관련 함수 ---
 def get_db():
@@ -57,7 +58,7 @@ def init_db():
 def create_app():
     app = Flask(__name__)
 
-    if not ADMIN_USERNAME or not ADMIN_PASSWORD_HASH: # 해시 확인
+    if not ADMIN_USERNAME or not ADMIN_PASSWORD_HASH:
         print("오류: ADMIN_USERNAME 또는 ADMIN_PASSWORD_HASH 환경 변수가 설정되지 않았습니다.", file=sys.stderr)
         print("BackEndServer/.env 파일을 생성하고 값을 설정하거나 시스템 환경 변수를 설정해주세요.", file=sys.stderr)
         sys.exit(1)
@@ -67,13 +68,14 @@ def create_app():
     app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
     jwt = JWTManager(app)
 
-    # --- SSE 설정 제거 확인 ---
-
     # --- SocketIO 초기화 ---
-    socketio.init_app(app) # SocketIO 초기화 확인
+    # Redis URL 설정은 SocketIO가 여러 워커 간 통신 시 필요할 수 있으나,
+    # eventlet/gevent 단일 프로세스 또는 워커 환경에서는 필수는 아님.
+    # app.config["REDIS_URL"] = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+    socketio.init_app(app) # SocketIO 객체를 앱에 초기화
 
     # --- CORS 설정 ---
-    # CORS(app) # SocketIO에서 처리
+    # CORS(app) # SocketIO 생성 시 cors_allowed_origins 설정으로 대체
 
     # --- 라우트 정의 ---
     @app.route('/register', methods=['POST'])
@@ -91,7 +93,6 @@ def create_app():
                 return jsonify({"message": "Computer already registered or pending"}), 200
             cursor.execute("INSERT INTO registrations (computer_id) VALUES (?)", (computer_id,))
             conn.commit()
-            # SocketIO 이벤트 발생 확인
             socketio.emit('update_user_list', {'message': 'User list may have changed'})
             return jsonify({"message": "Registration request received, pending approval"}), 201
         except sqlite3.Error as e:
@@ -132,7 +133,6 @@ def create_app():
     def admin_login():
         username = request.json.get('username', None)
         password = request.json.get('password', None)
-        # 비밀번호 해시 비교 확인
         if username == ADMIN_USERNAME and password and ADMIN_PASSWORD_HASH and \
            bcrypt.checkpw(password.encode('utf-8'), ADMIN_PASSWORD_HASH.encode('utf-8')):
             access_token = create_access_token(identity=username)
@@ -180,7 +180,6 @@ def create_app():
             conn.commit()
             if cursor.rowcount == 0:
                 return jsonify({"message": "User not found"}), 404
-            # SocketIO 이벤트 발생 확인
             socketio.emit('update_user_list', {'message': 'User list may have changed'})
             return jsonify({"message": f"User {user_id} deleted successfully"}), 200
         except sqlite3.Error as e:
@@ -213,7 +212,6 @@ def create_app():
             conn.commit()
             if cursor.rowcount == 0:
                 return jsonify({"message": "Request not found or already processed"}), 404
-            # SocketIO 이벤트 발생 확인
             socketio.emit('update_user_list', {'message': 'User list may have changed'})
             return jsonify({"message": f"Request {request_id} has been {db_status.lower()}"}), 200
         except sqlite3.Error as e:
@@ -230,6 +228,9 @@ def create_app():
     # --- SocketIO 이벤트 핸들러 ---
     @socketio.on('connect')
     def handle_connect():
+        # 여기서는 JWT 토큰 검증을 추가할 수 있습니다.
+        # 예: auth = request.args.get('token') 또는 request.headers.get('Authorization')
+        # Flask-SocketIO 문서의 인증 섹션 참조
         print('Client connected')
 
     @socketio.on('disconnect')
