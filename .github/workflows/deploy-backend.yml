@@ -1,0 +1,56 @@
+name: Deploy Node Backend
+
+on:
+  push:
+    paths:
+      - 'NodeBackendServer/**'
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest # 최신 Ubuntu Runner 사용
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4 # 코드 체크아웃
+
+      - name: Install cloudflared
+        run: |
+          echo "Downloading latest cloudflared..."
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          echo "Installing cloudflared..."
+          sudo dpkg -i cloudflared.deb
+          echo "cloudflared installation verification:"
+          cloudflared --version
+
+      - name: Setup SSH Agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          # 백엔드 LXC 접속용 개인 키 (맥북에서 생성한 것)
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} 
+
+      # ProxyJump 설정은 제거됨
+
+      - name: Sync files via rsync using cloudflared ProxyCommand (SSH mode)
+        env:
+          # SSH 프록시 명령 정의 (가독성 및 관리 용이성)
+          # StrictHostKeyChecking=accept-new: 첫 연결 시 호스트 키 자동 추가 (편리함)
+          # 또는 no (덜 안전) 또는 yes (known_hosts 미리 설정 필요 - 가장 안전)
+          SSH_PROXY_COMMAND: ssh -v -o "StrictHostKeyChecking=accept-new" -o "ProxyCommand cloudflared access ssh --hostname ${{ secrets.SSH_HOST_TUNNEL }}"
+        run: |
+          echo "Starting rsync with cloudflared proxy (SSH mode)..."
+          # -e 옵션으로 커스텀 SSH 명령 지정
+          # 대상 사용자: 백엔드 LXC 사용자 (licuser)
+          # 대상 호스트: 터널 주소 (cloudflared가 라우팅)
+          # 대상 경로: 백엔드 LXC의 최종 경로
+          rsync -avz --delete \
+            -e "${SSH_PROXY_COMMAND}" \
+            ${{ github.workspace }}/${{ secrets.SOURCE_PATH }}/ \
+            ${{ secrets.SSH_USER_BACKEND }}@${{ secrets.SSH_HOST_TUNNEL }}:${{ secrets.TARGET_PATH }}/
+          echo "Rsync completed."
+
+      - name: Clean up SSH Agent # 작업 완료 후 SSH 에이전트 정리
+        # 항상 실행되도록 하여 실패 시에도 키가 남지 않도록 함
+        if: always() 
+        run: ssh-agent -k
