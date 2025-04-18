@@ -7,7 +7,8 @@ const { Server } = require("socket.io");
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
-const sqlite3 = require('sqlite3').verbose(); // verbose 모드로 상세 로그 확인
+const sqlite3 = require('sqlite3').verbose();
+const fs = require('fs'); // 파일 시스템 모듈 추가
 
 const app = express();
 const server = http.createServer(app);
@@ -15,22 +16,22 @@ const server = http.createServer(app);
 // Socket.IO 서버 설정
 const io = new Server(server, {
   cors: {
-    origin: "*", // 실제 운영 시에는 프론트엔드 주소로 제한: process.env.FRONTEND_URL || "https://DreamHouseKSH.github.io"
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
 
 // CORS 미들웨어 설정 (API 요청용)
 app.use(cors({
-  origin: "*", // 실제 운영 시에는 프론트엔드 주소로 제한
-  credentials: true // 필요시 쿠키/인증 헤더 허용
+  origin: "*",
+  credentials: true
 }));
 
 // JSON 요청 본문 파싱 미들웨어
 app.use(express.json());
 
 // 환경 변수 확인
-const PORT = process.env.PORT || 8000; // Gunicorn과 동일한 포트 사용
+const PORT = process.env.PORT || 8000;
 const JWT_SECRET = process.env.JWT_SECRET_KEY || 'super-secret-dev-key';
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
 const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH;
@@ -41,28 +42,24 @@ if (!ADMIN_USERNAME || !ADMIN_PASSWORD_HASH || !JWT_SECRET) {
 }
 
 // --- 데이터베이스 설정 ---
-const DB_PATH = '../BackEndServer/license_db.sqlite'; // 기존 SQLite 파일 경로
+const DB_DIR = '../BackEndServer'; // DB 파일이 있는 디렉토리
+const DB_PATH = `${DB_DIR}/license_db.sqlite`; // 기존 SQLite 파일 경로
 let db;
 
-function connectDb() {
-  db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, (err) => {
-    if (err) {
-      console.error("SQLite 연결 오류:", err.message);
-      // DB 파일이 없으면 초기화 시도 (선택 사항)
-      // initDb(); // 아래 initDb 함수 정의 필요
-    } else {
-      console.log('SQLite 데이터베이스에 연결되었습니다.');
-    }
-  });
-}
-
-// DB 초기화 함수 (필요시 사용)
-/*
+// DB 초기화 함수
 function initDb() {
+  console.log('SQLite 데이터베이스 초기화 시도...');
+  // 디렉토리 존재 확인 및 생성
+  if (!fs.existsSync(DB_DIR)){
+      console.log(`디렉토리 생성: ${DB_DIR}`);
+      fs.mkdirSync(DB_DIR, { recursive: true });
+  }
+
   db = new sqlite3.Database(DB_PATH, (err) => { // 파일 없으면 생성
-    if (err) return console.error("SQLite 생성 오류:", err.message);
-    console.log('새 SQLite 데이터베이스 생성 중...');
-    db.run(`CREATE TABLE registrations (
+    if (err) return console.error("SQLite 생성/연결 오류:", err.message);
+
+    console.log('SQLite 데이터베이스 연결됨 (초기화 중).');
+    db.run(`CREATE TABLE IF NOT EXISTS registrations (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               computer_id TEXT UNIQUE NOT NULL,
               request_timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -70,26 +67,48 @@ function initDb() {
               approval_timestamp DATETIME,
               notes TEXT
             )`, (err) => {
-      if (err) return console.error("테이블 생성 오류:", err.message);
-      console.log("registrations 테이블 생성 완료.");
-      connectDb(); // 테이블 생성 후 다시 연결
+      if (err) {
+        console.error("테이블 생성 오류:", err.message);
+        // 테이블 생성 실패 시 DB 닫기 시도
+        db.close((closeErr) => {
+          if (closeErr) console.error("DB 닫기 오류 (테이블 생성 실패 시):", closeErr.message);
+        });
+      } else {
+        console.log("registrations 테이블 확인/생성 완료.");
+      }
     });
   });
 }
-*/
+
+// DB 연결 함수
+function connectDb() {
+  if (!fs.existsSync(DB_PATH)) {
+    initDb(); // 파일 없으면 초기화
+  } else {
+    db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, (err) => {
+      if (err) {
+        console.error("SQLite 연결 오류:", err.message);
+        // 연결 실패 시 초기화 시도 (파일은 있지만 열 수 없을 때)
+        // initDb(); // 무한 루프 가능성 있으므로 주석 처리
+      } else {
+        console.log('SQLite 데이터베이스에 연결되었습니다.');
+      }
+    });
+  }
+}
 
 connectDb(); // 서버 시작 시 DB 연결
 
-// --- JWT 인증 미들웨어 (Socket.IO 및 API용) ---
+// --- JWT 인증 미들웨어 ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+  const token = authHeader && authHeader.split(' ')[1];
 
-  if (token == null) return res.sendStatus(401); // 토큰 없음
+  if (token == null) return res.sendStatus(401);
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403); // 토큰 유효하지 않음
-    req.user = user; // 요청 객체에 사용자 정보 저장 (여기서는 username)
+    if (err) return res.sendStatus(403);
+    req.user = user;
     next();
   });
 };
@@ -104,7 +123,6 @@ io.use((socket, next) => {
     if (err) {
       return next(new Error("Authentication error: Invalid token"));
     }
-    // socket.decoded = decoded; // 필요시 디코딩된 정보 저장
     console.log(`Socket authenticated for user: ${decoded.sub}`);
     next();
   });
@@ -112,7 +130,7 @@ io.use((socket, next) => {
 
 
 // --- API 라우트 ---
-
+// ... (API 라우트 코드는 이전과 동일) ...
 // 등록 요청
 app.post('/register', (req, res) => {
   const { computer_id } = req.body;
@@ -135,7 +153,6 @@ app.post('/register', (req, res) => {
         return res.status(500).json({ error: "Database error" });
       }
       console.log(`New registration request: ${computer_id}, ID: ${this.lastID}`);
-      // 웹소켓 이벤트 발생
       io.emit('update_user_list', { message: 'User list may have changed' });
       res.status(201).json({ message: "Registration request received, pending approval" });
     });
@@ -169,11 +186,9 @@ app.post('/admin/login', (req, res) => {
   if (username === ADMIN_USERNAME && password) {
     bcrypt.compare(password, ADMIN_PASSWORD_HASH, (err, result) => {
       if (result) {
-        // 비밀번호 일치 -> JWT 생성
         const accessToken = jwt.sign({ sub: username }, JWT_SECRET, { expiresIn: '1h' });
         res.json({ accessToken: accessToken });
       } else {
-        // 비밀번호 불일치 또는 bcrypt 오류
         console.error("Bcrypt compare error or password mismatch:", err);
         res.status(401).json({ msg: "Bad username or password" });
       }
@@ -182,8 +197,6 @@ app.post('/admin/login', (req, res) => {
     res.status(401).json({ msg: "Bad username or password" });
   }
 });
-
-// --- 관리자 API (JWT 인증 필요) ---
 
 // 전체 사용자 목록 조회
 app.get('/admin/users', authenticateToken, (req, res) => {
@@ -196,7 +209,7 @@ app.get('/admin/users', authenticateToken, (req, res) => {
   });
 });
 
-// 보류 중인 요청 조회 (필요시 사용)
+// 보류 중인 요청 조회
 app.get('/admin/requests', authenticateToken, (req, res) => {
    db.all("SELECT id, computer_id, request_timestamp FROM registrations WHERE status = 'Pending' ORDER BY request_timestamp DESC", [], (err, rows) => {
     if (err) {
@@ -234,7 +247,7 @@ app.post('/admin/action/:id', authenticateToken, (req, res) => {
   }
 
   const dbStatus = action === 'Approve' ? 'Approved' : 'Rejected';
-  const approvalTimestamp = new Date().toISOString(); // ISO 8601 형식
+  const approvalTimestamp = new Date().toISOString();
 
   db.run(`UPDATE registrations
           SET status = ?, approval_timestamp = ?
@@ -257,13 +270,9 @@ app.post('/admin/action/:id', authenticateToken, (req, res) => {
 // --- Socket.IO 이벤트 핸들러 ---
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);
-
-  // 연결 해제 시
   socket.on('disconnect', () => {
     console.log('user disconnected:', socket.id);
   });
-
-  // 다른 필요한 이벤트 핸들러 추가 가능
 });
 
 
@@ -272,15 +281,38 @@ server.listen(PORT, () => {
   console.log(`Node.js 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
 });
 
-// --- 종료 처리 ---
-process.on('SIGINT', () => {
-  console.log('서버 종료 중...');
-  db.close((err) => {
-    if (err) console.error("DB 닫기 오류:", err.message);
-    else console.log('SQLite 연결이 닫혔습니다.');
+// --- 종료 처리 개선 ---
+function gracefulShutdown() {
+  console.log('서버 종료 신호 수신, 정리 시작...');
+  // Socket.IO 서버 먼저 닫기
+  io.close(() => {
+    console.log('Socket.IO 서버 닫힘.');
+    // HTTP 서버 닫기
     server.close(() => {
-      console.log('서버가 종료되었습니다.');
-      process.exit(0);
+      console.log('HTTP 서버 닫힘.');
+      // 데이터베이스 연결 닫기
+      if (db) {
+        db.close((err) => {
+          if (err) {
+            console.error("DB 닫기 오류:", err.message);
+            process.exit(1); // 오류 시 비정상 종료
+          } else {
+            console.log('SQLite 연결이 닫혔습니다.');
+            process.exit(0); // 정상 종료
+          }
+        });
+      } else {
+        process.exit(0); // DB 연결 없으면 바로 종료
+      }
     });
   });
-});
+
+  // 일정 시간 후 강제 종료 (선택 사항)
+  setTimeout(() => {
+    console.error('정리 시간 초과, 강제 종료.');
+    process.exit(1);
+  }, 10000); // 10초 후 강제 종료
+}
+
+process.on('SIGINT', gracefulShutdown); // Ctrl+C
+process.on('SIGTERM', gracefulShutdown); // kill 명령어 등
