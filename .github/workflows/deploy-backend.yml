@@ -10,19 +10,54 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-    - name: Set up SSH agent
-      uses: webfactory/ssh-agent@v0.8.0
-      with:
-        ssh-private-key: ${{ secrets.SSH_KEY }}
+      - name: Install cloudflared # cloudflared 설치 단계 추가
+        run: |
+          # Get latest cloudflared amd64 .deb
+          curl -L --output cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          # Install
+          sudo dpkg -i cloudflared.deb
+          # Verify installation
+          cloudflared --version
 
-    - name: Deploy NodeBackendServer to LXC server
-      run: |
-        rsync -avz -e "ssh -p ${{ secrets.SSH_PORT }} -o StrictHostKeyChecking=no" \
-          --delete \
-          ./NodeBackendServer/ \
-          ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.REMOTE_PATH }}
+      - name: Setup SSH Agent # 내부 키 제거, GitHub Actions 키만 사용
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }} # GitHub Actions 전용 키
+
+      - name: Add known hosts (Optional but Recommended) # 터널 호스트 키만 추가 (선택적)
+        run: |
+          mkdir -p ~/.ssh
+          # licssh.dahangis.co.kr의 실제 IP가 아닌, 프록시를 통해 접속할 때의 키를 스캔해야 함
+          # ProxyCommand를 통해 키를 스캔하는 것은 복잡할 수 있으므로,
+          # StrictHostKeyChecking=no 를 사용하거나 수동으로 키를 등록하는 것이 더 간단할 수 있음.
+          # 여기서는 StrictHostKeyChecking=accept-new 로 시도 (첫 연결 시 자동으로 추가)
+          # 또는 ssh-keyscan ${{ secrets.SSH_HOST_TUNNEL }} >> ~/.ssh/known_hosts # 이 방식은 직접 연결이라 실패할 수 있음
+          echo "Skipping automatic known_hosts addition for proxy setup. Using accept-new or manual key."
+
+      # ProxyJump 설정 단계 제거됨
+
+      - name: Sync files via rsync using cloudflared ProxyCommand
+        env: # 환경 변수로 SSH 명령 정의 (가독성 향상)
+           # StrictHostKeyChecking=accept-new : 첫 연결 시 자동으로 known_hosts에 추가 (편리하지만 약간 덜 안전)
+           # 또는 StrictHostKeyChecking=no : 호스트 키 검증 안 함 (가장 덜 안전)
+           # 또는 수동으로 known_hosts에 키를 미리 등록해야 함 (가장 안전)
+           SSH_PROXY_COMMAND: ssh -v -o "StrictHostKeyChecking=accept-new" -o "ProxyCommand cloudflared access ssh --hostname ${{ secrets.SSH_HOST_TUNNEL }}"
+           # SSH_PROXY_COMMAND: ssh -v -o "StrictHostKeyChecking=no" -o "ProxyCommand cloudflared access ssh --hostname ${{ secrets.SSH_HOST_TUNNEL }}"
+        run: |
+          echo "Starting rsync with cloudflared proxy..."
+          rsync -avz --delete \
+            -e "${SSH_PROXY_COMMAND}" \ # 정의된 SSH 명령 사용
+            ${{ github.workspace }}/${{ secrets.SOURCE_PATH }}/ \
+            ${{ secrets.SSH_USER_BACKEND }}@${{ secrets.SSH_HOST_TUNNEL }}:${{ secrets.TARGET_PATH }}/
+            # 사용자: 백엔드 LXC 사용자 (app_user)
+            # 호스트: 터널 주소 (cloudflared가 내부적으로 라우팅)
+            # 경로: 백엔드 LXC의 최종 경로
+          echo "Rsync completed."
+
+      - name: Clean up SSH Agent
+        if: always()
+        run: ssh-agent -k
