@@ -98,8 +98,8 @@ function MonthlyChart({ users }) {
         maxVal = currentMax;
       }
     });
-    // 최대값에 여유분 추가 (최소 5 보장)
-    return Math.max(5, Math.ceil(maxVal) + 2);
+    // 최대값에 여유분 추가 (최소 10 보장)
+    return Math.max(10, Math.ceil(maxVal) + 2); // 최소값을 10으로 변경
   }, [chartData]); // chartData가 변경될 때만 재계산
 
   const options = {
