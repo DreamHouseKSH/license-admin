@@ -211,6 +211,9 @@ export default function App() {
 
   // --- useEffect 훅 ---
   useEffect(() => {
+    // useEffect 실행 및 상태 확인 로그 추가
+    console.log(`useEffect triggered: isLoggedIn=${isLoggedIn}, accessToken=${!!accessToken}`);
+
     if (isLoggedIn && accessToken) {
       // 로그인 시 사용자 목록 즉시 로드
       fetchAllUsers();
