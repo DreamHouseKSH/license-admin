@@ -57,8 +57,8 @@ jobs:
             --exclude 'package.json' \
             --exclude '.env' \
             -e "${SSH_PROXY_COMMAND}" \
-            "${SOURCE_DIR}" \ # 환경 변수 사용 (따옴표 추가)
-            "${TARGET_SPEC}" # 환경 변수 사용 (따옴표 추가)
+            "${SOURCE_DIR}" \
+            "${TARGET_SPEC}"
           echo "Rsync completed."
 
       - name: Clean up SSH Agent # 보안을 위해 에이전트 정리
