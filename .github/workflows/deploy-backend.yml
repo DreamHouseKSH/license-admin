@@ -55,7 +55,7 @@ jobs:
             --exclude 'package.json' \       # package.json 파일 제외 (소스에 포함 안됨)
             --exclude '.env' \               # .env 파일 제외
             -e "${SSH_PROXY_COMMAND}" \
-            /home/runner/work/license-admin/license-admin/NodeBackendServer/ \ # 소스 경로를 절대 경로로 명시 (github.workspace 사용 안 함)
+            ./ \                             # 소스 경로를 다시 현재 디렉토리(.)로 변경
             ${{ secrets.SSH_USER_BACKEND }}@${{ secrets.SSH_HOST_TUNNEL }}:${{ secrets.TARGET_PATH }}/ # 대상 경로
           echo "Rsync completed."
 
