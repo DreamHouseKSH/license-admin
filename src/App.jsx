@@ -93,7 +93,7 @@ function App() {
 
       {/* 그래프 섹션 (관리자 패널 위로 이동 및 스타일링) */}
       {isLoggedIn && (
-        <div className="w-full max-w-4xl bg-white p-4 rounded-lg shadow-md h-80 mb-8"> {/* 높이(h-80), 하단 마진(mb-8) 추가 */}
+        <div className="w-full max-w-4xl bg-white p-4 rounded-lg shadow-md h-80"> {/* mb-8 제거, space-y-8에 의존 */}
           <MonthlyChart users={allUsers} />
         </div>
       )}
