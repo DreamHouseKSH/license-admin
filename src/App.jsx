@@ -4,6 +4,7 @@ import io from 'socket.io-client';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
+// 날짜 포맷 함수
 function formatDate(dateString) {
   if (!dateString) return '-';
   try {
@@ -15,6 +16,22 @@ function formatDate(dateString) {
   } catch (error) {
     console.error("날짜 포맷 오류:", dateString, error);
     return dateString;
+  }
+}
+
+// 상태 값 한국어 변환 함수
+function translateStatus(status) {
+  switch (status) {
+    case 'Approved':
+      return '승인됨';
+    case 'Rejected':
+      return '거절됨';
+    case 'Pending':
+      return '대기중';
+    case 'Not Found':
+      return '찾을 수 없음';
+    default:
+      return status; // 알 수 없는 상태는 그대로 표시
   }
 }
 
@@ -79,7 +96,7 @@ export default function App() {
     setAdminActionError('');
     try {
       await axios.post(`${API_URL}/admin/action/${id}`,
-        { action: action }, // 백엔드는 'Approve', 'Reject' 영어로 받음
+        { action: action },
         { headers: { Authorization: `Bearer ${currentToken}` } }
       );
     } catch (error) {
@@ -98,7 +115,6 @@ export default function App() {
   const handleDelete = async (id) => {
     const currentToken = localStorage.getItem('accessToken');
     if (!currentToken) return;
-    // 확인 메시지 한국어로 변경
     if (!window.confirm(`사용자 ID ${id}를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
@@ -144,7 +160,6 @@ export default function App() {
       if (error.response && error.response.status === 401) {
         setLoginError('잘못된 사용자 이름 또는 비밀번호입니다.');
       } else {
-        // 일반 오류 메시지 한국어로 변경
         setLoginError('로그인 실패. 서버에 연결할 수 없거나 다른 오류가 발생했습니다.');
       }
       setAccessToken(null);
@@ -164,7 +179,6 @@ export default function App() {
       const res = await axios.post(`${API_URL}/register`, {
         computer_id: registerComputerId,
       });
-      // 백엔드 메시지를 그대로 사용하거나, 여기서 한국어로 변환 가능
       setRegistrationResult({ success: res.data.message });
       setRegisterComputerId('');
     } catch (error) {
@@ -191,13 +205,12 @@ export default function App() {
       const res = await axios.post(`${API_URL}/validate`, {
         computer_id: computerId,
       });
-      // 'Not Found' 상태 한국어로 변경
-      const statusText = res.data.status === 'Not Found' ? '찾을 수 없음' : res.data.status;
-      setValidationResult({ status: statusText });
+      // 상태 값 변환 적용
+      setValidationResult({ status: translateStatus(res.data.status) });
     } catch (error) {
       console.error("상태 확인 오류:", error);
       if (error.response && error.response.status === 404) {
-        setValidationResult({ status: '찾을 수 없음' }); // 한국어로 변경
+        setValidationResult({ status: translateStatus('Not Found') }); // '찾을 수 없음'
       } else {
         setValidationResult({ error: '상태 확인 중 오류가 발생했습니다.' });
       }
@@ -237,7 +250,6 @@ export default function App() {
 
       socketRef.current.on('connect_error', (err) => {
         console.error('WebSocket connection error:', err.message);
-        // 실시간 연결 오류 메시지 한국어로 변경
         setAdminActionError(`실시간 연결 오류: ${err.message}`);
         if (err.message.includes('Unauthorized') || err.message.includes('401')) {
            handleAdminLogout();
@@ -339,8 +351,8 @@ export default function App() {
                   상태 확인
                 </button>
                 {validationResult && (
-                  // 상태 표시 한국어 적용
-                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === 'Approved' ? 'bg-green-100 text-green-700' : validationResult.status === 'Rejected' ? 'bg-red-100 text-red-700' : validationResult.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : validationResult.status === '찾을 수 없음' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>
+                  // 상태 값 한국어 변환 적용
+                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === '승인됨' ? 'bg-green-100 text-green-700' : validationResult.status === '거절됨' ? 'bg-red-100 text-red-700' : validationResult.status === '대기중' ? 'bg-yellow-100 text-yellow-700' : validationResult.status === '찾을 수 없음' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>
                     {validationResult.error ? `오류: ${validationResult.error}` : `상태: ${validationResult.status}`}
                   </div>
                 )}
@@ -424,12 +436,13 @@ export default function App() {
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{user.id}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{user.computer_id}</td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">
+                          {/* 상태 값 한국어 변환 적용 */}
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             user.status === 'Approved' ? 'bg-green-100 text-green-800' :
                             user.status === 'Rejected' ? 'bg-red-100 text-red-800' :
                             user.status === 'Pending' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800'
                           }`}>
-                            {user.status}
+                            {translateStatus(user.status)}
                           </span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{formatDate(user.request_timestamp)}</td>
