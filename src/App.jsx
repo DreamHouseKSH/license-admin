@@ -95,14 +95,14 @@ function App() {
 
       {/* 그래프 섹션 (관리자 패널 위로 이동 및 스타일링) */}
       {isLoggedIn && (
-        <div className="w-full max-w-4xl bg-white p-4 rounded-lg shadow-md"> {/* h-80 제거 */}
+        <div className="w-full bg-white p-4 rounded-lg shadow-md"> {/* max-w-4xl 제거 */}
           <MonthlyChart users={allUsers} />
         </div>
       )}
 
       {/* 2층: 관리자 패널 및 연습 폼 (로그인 시 표시) */}
       {isLoggedIn && (
-        <div className="w-full max-w-4xl flex justify-between items-start gap-8">
+        <div className="w-full flex justify-between items-start gap-8"> {/* max-w-4xl 제거 */}
           {/* 왼쪽 연습 폼 */}
           <div className="flex-shrink-0 w-1/4"> {/* 너비 조정 가능 */}
              <RegistrationPracticeForm />
@@ -136,9 +136,8 @@ function App() {
          </div>
       )}
 
-
-        {/* 연습용 폼 (아래로 이동) */}
         {/* <PracticeForms /> */} {/* 기존 PracticeForms 제거 */}
+        {/* 중복된 로그인 폼 제거됨 */}
       </div> {/* flex-grow div 닫기 */}
 
       {/* 푸터 추가 (flex-grow 밖으로 이동) */}
