@@ -2,7 +2,8 @@ import React from 'react';
 
 function Footer({ stats }) {
   return (
-    <footer className="w-full max-w-4xl mt-12 py-6 border-t border-gray-300 text-center text-gray-500 text-sm">
+    // max-w-4xl 제거하고 주석 위치 수정 (또는 제거)
+    <footer className="w-full mt-12 py-6 border-t border-gray-300 text-center text-gray-500 text-sm">
       <div className="mb-4">
         <h4 className="text-md font-semibold mb-2 text-gray-600">사용자 통계</h4>
         <div className="flex justify-center gap-6">
