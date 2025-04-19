@@ -1,12 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
-// import { fetchEventSource } from '@microsoft/fetch-event-source'; // SSE 라이브러리 제거
-import io from 'socket.io-client'; // socket.io-client 임포트
+import io from 'socket.io-client';
 
-// 백엔드 API 주소 - .env 파일 또는 환경 변수에서 가져옵니다.
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000'; // 기본값 설정 (개발용)
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-// 날짜 포맷 함수 (간단 예시)
 function formatDate(dateString) {
   if (!dateString) return '-';
   try {
@@ -22,29 +19,20 @@ function formatDate(dateString) {
 }
 
 export default function App() {
-  // --- 상태 관리 ---
   const [allUsers, setAllUsers] = useState([]);
   const [computerId, setComputerId] = useState('');
   const [validationResult, setValidationResult] = useState(null);
   const [registerComputerId, setRegisterComputerId] = useState('');
   const [registrationResult, setRegistrationResult] = useState(null);
-
-  // JWT 인증 및 관리자 상태
   const [accessToken, setAccessToken] = useState(localStorage.getItem('accessToken') || null);
   const [isLoggedIn, setIsLoggedIn] = useState(!!accessToken);
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [adminActionError, setAdminActionError] = useState('');
-
-  // Socket.IO 인스턴스 참조
   const socketRef = useRef(null);
 
-
-  // --- API 호출 함수 ---
-
-   // 관리자 로그아웃 (useCallback으로 감싸기)
-   const handleAdminLogout = useCallback(() => {
+  const handleAdminLogout = useCallback(() => {
     setAccessToken(null);
     localStorage.removeItem('accessToken');
     setIsLoggedIn(false);
@@ -53,22 +41,25 @@ export default function App() {
     setAllUsers([]);
     setLoginError('');
     setAdminActionError('');
-    // 웹소켓 연결 해제
     if (socketRef.current) {
       socketRef.current.disconnect();
       socketRef.current = null;
       console.log("WebSocket disconnected on logout.");
     }
-  }, []); // 빈 의존성 배열
+  }, []);
 
-  // 관리자: 모든 사용자 목록 가져오기
   const fetchAllUsers = useCallback(async () => {
-    if (!accessToken) return;
+    // accessToken 상태를 직접 사용하지 않고, 함수 호출 시 인자로 받도록 변경 (선택 사항, 의존성 줄이기)
+    const currentToken = localStorage.getItem('accessToken'); // 로컬 스토리지에서 직접 읽기
+    if (!currentToken) {
+        console.log("fetchAllUsers: No access token found, aborting.");
+        return;
+    }
     setAdminActionError('');
     try {
       console.log("Fetching all users...");
       const res = await axios.get(`${API_URL}/admin/users`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${currentToken}` } // 현재 토큰 사용
       });
       setAllUsers(res.data || []);
     } catch (error) {
@@ -81,18 +72,17 @@ export default function App() {
         setAdminActionError('사용자 목록을 가져오는데 실패했습니다.');
       }
     }
-  }, [accessToken, handleAdminLogout]);
+  }, [handleAdminLogout]); // accessToken 의존성 제거
 
-  // 관리자: 요청 처리 (승인/거절)
   const handleAction = async (id, action) => {
-    if (!accessToken) return;
+    const currentToken = localStorage.getItem('accessToken');
+    if (!currentToken) return;
     setAdminActionError('');
     try {
       await axios.post(`${API_URL}/admin/action/${id}`,
         { action: action },
-        { headers: { Authorization: `Bearer ${accessToken}` } }
+        { headers: { Authorization: `Bearer ${currentToken}` } }
       );
-      // 웹소켓이 업데이트하므로 여기서 fetchAllUsers 호출 불필요
     } catch (error) {
       console.error(`작업 처리 오류 (${action}, ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
@@ -106,18 +96,17 @@ export default function App() {
     }
   };
 
-  // 관리자: 사용자 삭제
   const handleDelete = async (id) => {
-    if (!accessToken) return;
+    const currentToken = localStorage.getItem('accessToken');
+    if (!currentToken) return;
     if (!window.confirm(`사용자 ID ${id}를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
     setAdminActionError('');
     try {
       await axios.delete(`${API_URL}/admin/user/${id}`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
-       // 웹소켓이 업데이트하므로 여기서 fetchAllUsers 호출 불필요
     } catch (error) {
       console.error(`사용자 삭제 오류 (ID: ${id}):`, error);
        if (error.response && (error.response.status === 401 || error.response.status === 422)) {
@@ -131,7 +120,6 @@ export default function App() {
     }
   };
 
-  // 관리자 로그인
   const handleAdminLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
@@ -140,11 +128,18 @@ export default function App() {
         username: adminUsername,
         password: adminPassword,
       });
-      const token = res.data.access_token;
-      setAccessToken(token);
-      localStorage.setItem('accessToken', token);
-      setIsLoggedIn(true);
-      setAdminPassword('');
+      const token = res.data.accessToken; // 백엔드 응답 키 확인 (accessToken)
+      if (token) { // 토큰이 실제로 있는지 확인
+        setAccessToken(token);
+        localStorage.setItem('accessToken', token);
+        setIsLoggedIn(true);
+        setAdminPassword('');
+      } else {
+         // 토큰이 응답에 없는 경우
+         console.error("Login successful, but no access token received in response.");
+         setLoginError('로그인 응답 오류.');
+         setIsLoggedIn(false); // 로그인 상태 변경 안 함
+      }
     } catch (error) {
       console.error("관리자 로그인 실패:", error);
       if (error.response && error.response.status === 401) {
@@ -158,7 +153,6 @@ export default function App() {
     }
   };
 
-  // 연습용: 등록 요청
   const handleRegister = async (e) => {
     e.preventDefault();
     if (!registerComputerId) {
@@ -185,7 +179,6 @@ export default function App() {
     }
   };
 
-  // 연습용: 상태 확인
   const handleValidate = async (e) => {
      e.preventDefault();
     if (!computerId) {
@@ -209,81 +202,86 @@ export default function App() {
   };
 
 
-  // --- useEffect 훅 ---
+  // --- useEffect 훅 1: 로그인 상태 변경 시 사용자 목록 로드 및 웹소켓 관리 ---
   useEffect(() => {
-    // useEffect 실행 및 상태 확인 로그 추가
-    console.log(`useEffect triggered: isLoggedIn=${isLoggedIn}, accessToken=${!!accessToken}`);
+    console.log(`useEffect 1 (isLoggedIn) triggered: isLoggedIn=${isLoggedIn}`);
 
-    if (isLoggedIn && accessToken) {
+    if (isLoggedIn) {
       // 로그인 시 사용자 목록 즉시 로드
       fetchAllUsers();
 
       // 웹소켓 연결 설정
-      // Socket.IO 서버 주소는 일반적으로 API 주소와 동일 (경로는 자동으로 /socket.io 사용)
-      // 인증 토큰은 auth 옵션을 통해 전달
       console.log("Connecting to WebSocket...");
+      const currentToken = localStorage.getItem('accessToken'); // 연결 시점의 토큰 사용
+      if (!currentToken) {
+          console.error("Cannot connect to WebSocket: No access token found.");
+          handleAdminLogout(); // 토큰 없으면 로그아웃 처리
+          return;
+      }
+
       socketRef.current = io(API_URL, {
         auth: {
-          token: accessToken
+          token: currentToken
         },
-        // transports: ['websocket'] // 필요시 특정 전송 방식 강제
       });
 
-      // 연결 성공 이벤트
       socketRef.current.on('connect', () => {
         console.log('WebSocket connected:', socketRef.current.id);
-        setAdminActionError(''); // 연결 성공 시 오류 메시지 제거
+        setAdminActionError('');
       });
 
-      // 연결 끊김 이벤트
       socketRef.current.on('disconnect', (reason) => {
         console.log('WebSocket disconnected:', reason);
-        // 서버 측에서 연결을 끊었거나 네트워크 문제 발생 시
-        // 필요하다면 여기서 로그아웃 처리 또는 재연결 시도 로직 추가
-        // setAdminActionError("실시간 연결 끊김.");
       });
 
-      // 연결 오류 이벤트
       socketRef.current.on('connect_error', (err) => {
         console.error('WebSocket connection error:', err.message);
         setAdminActionError(`실시간 연결 오류: ${err.message}`);
-        // 인증 실패(401) 등 특정 오류 시 로그아웃 처리 가능
         if (err.message.includes('Unauthorized') || err.message.includes('401')) {
            handleAdminLogout();
         }
       });
 
-      // 'update_user_list' 이벤트 수신 리스너 (백엔드에서 emit하는 이벤트 이름)
       socketRef.current.on('update_user_list', (data) => {
         console.log('WebSocket update_user_list event received:', data);
-        fetchAllUsers(); // 사용자 목록 새로고침
+        fetchAllUsers();
       });
 
     } else {
-      // 로그아웃 상태이거나 토큰이 없으면 연결 해제
+      // 로그아웃 시 연결 해제
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     }
 
-    // 컴포넌트 언마운트 시 또는 isLoggedIn/accessToken 변경 시 정리 함수
+    // 정리 함수
     return () => {
-      console.log("Cleaning up WebSocket connection...");
+      console.log("Cleaning up WebSocket connection (useEffect 1)...");
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     };
-  }, [isLoggedIn, accessToken, fetchAllUsers, handleAdminLogout]);
+  }, [isLoggedIn, fetchAllUsers, handleAdminLogout]); // accessToken 의존성 제거
+
+
+  // --- useEffect 훅 2: accessToken 변경 감지 (디버깅 및 보조) ---
+  useEffect(() => {
+    console.log(`useEffect 2 (accessToken) triggered: accessToken=${!!accessToken}`);
+    // accessToken이 변경되었지만 isLoggedIn이 true이고 목록이 비어있다면 다시 로드 시도
+    if (isLoggedIn && accessToken && allUsers.length === 0) {
+        console.log("accessToken changed, attempting to fetch users again...");
+        fetchAllUsers();
+    }
+    // accessToken 변경 시 웹소켓 재연결 로직은 useEffect 1에서 처리됨 (isLoggedIn 변경 시)
+  }, [accessToken, isLoggedIn, fetchAllUsers, allUsers.length]); // allUsers.length 추가
 
 
   // --- 렌더링 ---
-  // ... (나머지 렌더링 코드는 이전과 동일) ...
    return (
     <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center space-y-8">
-
-      {/* --- 랜딩 페이지 내용 --- */}
+      {/* ... (나머지 렌더링 코드는 이전과 동일) ... */}
       <div className="w-full max-w-2xl text-center">
         <h1 className="text-4xl font-bold text-gray-800 mb-4">라이선스 관리 시스템</h1>
         {!isLoggedIn && (
@@ -292,10 +290,7 @@ export default function App() {
           </p>
         )}
       </div>
-
-      {/* --- 연습용 기능 섹션 (항상 보임) --- */}
       <div className="w-full max-w-md grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          {/* 연습용 등록 요청 */}
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="text-xl font-semibold mb-4 text-gray-700">등록 요청 (연습용)</h3>
             <form onSubmit={handleRegister}>
@@ -325,8 +320,6 @@ export default function App() {
               )}
             </form>
           </div>
-
-          {/* 연습용 상태 확인 */}
           <div className="bg-white p-6 rounded-lg shadow-md">
             <h3 className="text-xl font-semibold mb-4 text-gray-700">상태 확인 (연습용)</h3>
              <form onSubmit={handleValidate}>
@@ -357,14 +350,9 @@ export default function App() {
              </form>
           </div>
       </div>
-
-
-      {/* --- 관리자 섹션 (로그인 폼 또는 관리 패널) --- */}
       <div className="w-full max-w-4xl bg-white p-8 rounded-lg shadow-md">
         <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 패널</h2>
-
         {!isLoggedIn ? (
-          // --- 관리자 로그인 폼 ---
           <form onSubmit={handleAdminLogin} className="max-w-sm mx-auto">
              <div className="mb-4">
               <label htmlFor="adminUser" className="block text-sm font-medium text-gray-600 mb-1">사용자 이름:</label>
@@ -401,7 +389,6 @@ export default function App() {
             </button>
           </form>
         ) : (
-          // --- 관리자 기능 UI (로그인 시 보임) ---
           <div>
              <div className="flex justify-between items-center mb-6">
               <p className="text-green-600 font-semibold">관리자 로그인됨</p>
@@ -412,7 +399,6 @@ export default function App() {
                 로그아웃
               </button>
             </div>
-
             <h3 className="text-xl font-bold mb-4 text-gray-700">등록된 사용자</h3>
             {adminActionError && (
               <p className="text-red-600 text-sm mb-4 text-center">{adminActionError}</p>

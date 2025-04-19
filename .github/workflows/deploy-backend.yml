@@ -2,10 +2,15 @@ name: Deploy Node Backend
 
 on:
   push:
-    paths:
-      - 'NodeBackendServer/**'
     branches:
-      - main
+      - main # 또는 사용하는 기본 브랜치 이름
+    paths:
+      # 아래 목록의 파일 중 하나라도 변경되어 푸시될 때만 워크플로우 실행
+      # 경로는 리포지토리 루트 기준. 실제 파일 경로로 수정하세요!
+      - 'NodeBackendServer/server.js'
+      - 'NodeBackendServer/.gitignore'
+      #- 'backend/NodeBackendServer/routes/api.js' 
+      # - 'path/to/another/important/file.js' # 필요에 따라 추가
 
 jobs:
   deploy:
