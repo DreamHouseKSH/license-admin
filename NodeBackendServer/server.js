@@ -8,7 +8,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sqlite3 = require('sqlite3').verbose();
-const fs = require('fs'); // 파일 시스템 모듈 추가
+const fs = require('fs');
 
 const app = express();
 const server = http.createServer(app);
@@ -42,22 +42,18 @@ if (!ADMIN_USERNAME || !ADMIN_PASSWORD_HASH || !JWT_SECRET) {
 }
 
 // --- 데이터베이스 설정 ---
-const DB_DIR = '../BackEndServer'; // DB 파일이 있는 디렉토리
-const DB_PATH = `${DB_DIR}/license_db.sqlite`; // 기존 SQLite 파일 경로
+const DB_DIR = '../BackEndServer';
+const DB_PATH = `${DB_DIR}/license_db.sqlite`;
 let db;
 
-// DB 초기화 함수
 function initDb() {
   console.log('SQLite 데이터베이스 초기화 시도...');
-  // 디렉토리 존재 확인 및 생성
   if (!fs.existsSync(DB_DIR)){
       console.log(`디렉토리 생성: ${DB_DIR}`);
       fs.mkdirSync(DB_DIR, { recursive: true });
   }
-
-  db = new sqlite3.Database(DB_PATH, (err) => { // 파일 없으면 생성
+  db = new sqlite3.Database(DB_PATH, (err) => {
     if (err) return console.error("SQLite 생성/연결 오류:", err.message);
-
     console.log('SQLite 데이터베이스 연결됨 (초기화 중).');
     db.run(`CREATE TABLE IF NOT EXISTS registrations (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,7 +65,6 @@ function initDb() {
             )`, (err) => {
       if (err) {
         console.error("테이블 생성 오류:", err.message);
-        // 테이블 생성 실패 시 DB 닫기 시도
         db.close((closeErr) => {
           if (closeErr) console.error("DB 닫기 오류 (테이블 생성 실패 시):", closeErr.message);
         });
@@ -80,16 +75,13 @@ function initDb() {
   });
 }
 
-// DB 연결 함수
 function connectDb() {
   if (!fs.existsSync(DB_PATH)) {
-    initDb(); // 파일 없으면 초기화
+    initDb();
   } else {
     db = new sqlite3.Database(DB_PATH, sqlite3.OPEN_READWRITE, (err) => {
       if (err) {
         console.error("SQLite 연결 오류:", err.message);
-        // 연결 실패 시 초기화 시도 (파일은 있지만 열 수 없을 때)
-        // initDb(); // 무한 루프 가능성 있으므로 주석 처리
       } else {
         console.log('SQLite 데이터베이스에 연결되었습니다.');
       }
@@ -97,15 +89,13 @@ function connectDb() {
   }
 }
 
-connectDb(); // 서버 시작 시 DB 연결
+connectDb();
 
 // --- JWT 인증 미들웨어 ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
-
   if (token == null) return res.sendStatus(401);
-
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.sendStatus(403);
     req.user = user;
@@ -130,14 +120,11 @@ io.use((socket, next) => {
 
 
 // --- API 라우트 ---
-// ... (API 라우트 코드는 이전과 동일) ...
-// 등록 요청
 app.post('/register', (req, res) => {
   const { computer_id } = req.body;
   if (!computer_id) {
     return res.status(400).json({ error: "Missing computer_id" });
   }
-
   db.get("SELECT id FROM registrations WHERE computer_id = ?", [computer_id], (err, row) => {
     if (err) {
       console.error("DB 조회 오류 (register):", err.message);
@@ -146,26 +133,28 @@ app.post('/register', (req, res) => {
     if (row) {
       return res.status(200).json({ message: "Computer already registered or pending" });
     }
-
     db.run("INSERT INTO registrations (computer_id) VALUES (?)", [computer_id], function(err) {
       if (err) {
         console.error("DB 삽입 오류 (register):", err.message);
         return res.status(500).json({ error: "Database error" });
       }
-      console.log(`New registration request: ${computer_id}, ID: ${this.lastID}`);
-      io.emit('update_user_list', { message: 'User list may have changed' });
+      const newId = this.lastID; // 삽입된 ID 가져오기
+      console.log(`New registration request: ${computer_id}, ID: ${newId}`);
+      // 웹소켓 이벤트 발생 로그 추가
+      console.log(`Emitting update_user_list event for new user ID: ${newId}`);
+      io.emit('update_user_list', { message: `User list updated due to registration ID: ${newId}` });
+      console.log(`Event emitted for new user ID: ${newId}`);
       res.status(201).json({ message: "Registration request received, pending approval" });
     });
   });
 });
 
-// 상태 확인
+// ... (다른 라우트 - validate, admin/login, admin/users, admin/requests) ...
 app.post('/validate', (req, res) => {
   const { computer_id } = req.body;
   if (!computer_id) {
     return res.status(400).json({ error: "Missing computer_id" });
   }
-
   db.get("SELECT status FROM registrations WHERE computer_id = ?", [computer_id], (err, row) => {
     if (err) {
       console.error("DB 조회 오류 (validate):", err.message);
@@ -179,10 +168,8 @@ app.post('/validate', (req, res) => {
   });
 });
 
-// 관리자 로그인
 app.post('/admin/login', (req, res) => {
   const { username, password } = req.body;
-
   if (username === ADMIN_USERNAME && password) {
     bcrypt.compare(password, ADMIN_PASSWORD_HASH, (err, result) => {
       if (result) {
@@ -198,7 +185,6 @@ app.post('/admin/login', (req, res) => {
   }
 });
 
-// 전체 사용자 목록 조회
 app.get('/admin/users', authenticateToken, (req, res) => {
   db.all("SELECT id, computer_id, request_timestamp, status, approval_timestamp, notes FROM registrations ORDER BY id DESC", [], (err, rows) => {
     if (err) {
@@ -209,7 +195,6 @@ app.get('/admin/users', authenticateToken, (req, res) => {
   });
 });
 
-// 보류 중인 요청 조회
 app.get('/admin/requests', authenticateToken, (req, res) => {
    db.all("SELECT id, computer_id, request_timestamp FROM registrations WHERE status = 'Pending' ORDER BY request_timestamp DESC", [], (err, rows) => {
     if (err) {
@@ -220,7 +205,7 @@ app.get('/admin/requests', authenticateToken, (req, res) => {
   });
 });
 
-// 사용자 삭제
+
 app.delete('/admin/user/:id', authenticateToken, (req, res) => {
   const userId = req.params.id;
   db.run("DELETE FROM registrations WHERE id = ?", [userId], function(err) {
@@ -232,23 +217,22 @@ app.delete('/admin/user/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     console.log(`User deleted: ID ${userId}`);
-    io.emit('update_user_list', { message: 'User list may have changed' });
+    // 웹소켓 이벤트 발생 로그 추가
+    console.log(`Emitting update_user_list event for deleted user ID: ${userId}`);
+    io.emit('update_user_list', { message: `User list updated due to deletion ID: ${userId}` });
+    console.log(`Event emitted for deleted user ID: ${userId}`);
     res.json({ message: `User ${userId} deleted successfully` });
   });
 });
 
-// 요청 처리 (승인/거절)
 app.post('/admin/action/:id', authenticateToken, (req, res) => {
   const requestId = req.params.id;
   const { action } = req.body;
-
   if (!action || !['Approve', 'Reject'].includes(action)) {
     return res.status(400).json({ error: "Invalid action specified (Approve or Reject)" });
   }
-
   const dbStatus = action === 'Approve' ? 'Approved' : 'Rejected';
   const approvalTimestamp = new Date().toISOString();
-
   db.run(`UPDATE registrations
           SET status = ?, approval_timestamp = ?
           WHERE id = ? AND status = 'Pending'`,
@@ -261,7 +245,10 @@ app.post('/admin/action/:id', authenticateToken, (req, res) => {
       return res.status(404).json({ message: "Request not found or already processed" });
     }
     console.log(`Request ${requestId} processed: ${dbStatus}`);
-    io.emit('update_user_list', { message: 'User list may have changed' });
+    // 웹소켓 이벤트 발생 로그 추가
+    console.log(`Emitting update_user_list event for action on ID: ${requestId}`);
+    io.emit('update_user_list', { message: `User list updated due to action on ID: ${requestId}` });
+    console.log(`Event emitted for action on ID: ${requestId}`);
     res.json({ message: `Request ${requestId} has been ${dbStatus.toLowerCase()}` });
   });
 });
@@ -284,35 +271,30 @@ server.listen(PORT, () => {
 // --- 종료 처리 개선 ---
 function gracefulShutdown() {
   console.log('서버 종료 신호 수신, 정리 시작...');
-  // Socket.IO 서버 먼저 닫기
   io.close(() => {
     console.log('Socket.IO 서버 닫힘.');
-    // HTTP 서버 닫기
     server.close(() => {
       console.log('HTTP 서버 닫힘.');
-      // 데이터베이스 연결 닫기
       if (db) {
         db.close((err) => {
           if (err) {
             console.error("DB 닫기 오류:", err.message);
-            process.exit(1); // 오류 시 비정상 종료
+            process.exit(1);
           } else {
             console.log('SQLite 연결이 닫혔습니다.');
-            process.exit(0); // 정상 종료
+            process.exit(0);
           }
         });
       } else {
-        process.exit(0); // DB 연결 없으면 바로 종료
+        process.exit(0);
       }
     });
   });
-
-  // 일정 시간 후 강제 종료 (선택 사항)
   setTimeout(() => {
     console.error('정리 시간 초과, 강제 종료.');
     process.exit(1);
-  }, 10000); // 10초 후 강제 종료
+  }, 10000);
 }
 
-process.on('SIGINT', gracefulShutdown); // Ctrl+C
-process.on('SIGTERM', gracefulShutdown); // kill 명령어 등
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
