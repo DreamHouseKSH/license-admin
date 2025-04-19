@@ -8,6 +8,7 @@ import ValidationPracticeForm from './components/ValidationPracticeForm'; // 추
 import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
 import Footer from './components/Footer';
+import Header from './components/Header'; // Header 임포트
 import MonthlyChart from './components/MonthlyChart';
 
 function App() {
@@ -88,8 +89,9 @@ function App() {
   // --- 렌더링 ---
    return (
     <div className="min-h-screen flex flex-col">
-      {/* 메인 콘텐츠 영역 (하단 패딩 pb-24 추가) */}
-      <div className="flex-grow p-6 pb-24 bg-gray-100 flex flex-col items-center space-y-8"> {/* pb-24 추가 */}
+      <Header /> {/* 헤더 추가 */}
+      {/* 메인 콘텐츠 영역 */}
+      <div className="flex-grow p-6 pb-24 bg-gray-100 flex flex-col items-center space-y-8">
         {/* 랜딩 페이지 소개 */}
         {!isLoggedIn && <LandingIntro />}
 
