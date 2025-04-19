@@ -88,6 +88,7 @@ function MonthlyChart({ users }) {
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false, // 추가: 종횡비 유지 비활성화
     plugins: {
       legend: {
         position: 'top',
@@ -106,9 +107,11 @@ function MonthlyChart({ users }) {
         }
     }
   };
+  // 중복된 options 객체 정의 제거됨
 
   return (
-    <div className="mb-8 p-4 bg-white rounded-lg shadow-md">
+    // h-full 추가, 기존 스타일 제거 (부모에서 스타일 관리)
+    <div className="h-full">
       <Bar options={options} data={chartData} />
     </div>
   );
