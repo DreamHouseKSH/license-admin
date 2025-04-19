@@ -50,7 +50,7 @@ jobs:
             --exclude 'package.json' \       # package.json 파일 제외
             --exclude '.env' \               # .env 파일 제외
             -e "${SSH_PROXY_COMMAND}" \
-            ${{ github.workspace }}/${{ secrets.SOURCE_PATH }}/ \ # 소스 경로
+            ${{ github.workspace }}/NodeBackendServer/ \ # 소스 경로 수정 (NodeBackendServer 디렉토리 명시)
             ${{ secrets.SSH_USER_BACKEND }}@${{ secrets.SSH_HOST_TUNNEL }}:${{ secrets.TARGET_PATH }}/ # 대상 경로
           echo "Rsync completed."
 
