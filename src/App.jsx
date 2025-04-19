@@ -102,16 +102,16 @@ function App() {
 
       {/* 2층: 관리자 패널 및 연습 폼 (로그인 시 표시) */}
       {isLoggedIn && (
-        <div className="w-full flex justify-between items-start gap-8"> {/* max-w-4xl 제거 */}
-          {/* 왼쪽 연습 폼 */}
-          <div className="flex-shrink-0 w-1/4"> {/* 너비 조정 가능 */}
+        <div className="w-full flex justify-between items-start gap-8">
+          {/* 왼쪽 연습 폼 (너비 w-1/5로 변경) */}
+          <div className="flex-shrink-0 w-1/5"> {/* 너비 20% */}
              <RegistrationPracticeForm />
           </div>
 
-          {/* 중앙 관리자 섹션 */}
-          <div className="flex-grow bg-white p-8 rounded-lg shadow-md"> {/* flex-grow 적용 */}
+          {/* 중앙 관리자 섹션 (너비 w-3/5로 변경) */}
+          <div className="w-3/5 bg-white p-8 rounded-lg shadow-md"> {/* flex-grow 제거, w-3/5 (60%) 추가 */}
             <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 패널</h2>
-            {/* AdminPanel 컴포넌트 직접 렌더링 (AdminLogin 로직은 App.jsx 최상단에서 처리) */}
+            {/* AdminPanel 컴포넌트 직접 렌더링 */}
              <AdminPanel
                 users={allUsers}
                 onLogout={handleAdminLogout}
@@ -121,8 +121,8 @@ function App() {
               />
           </div>
 
-          {/* 오른쪽 연습 폼 */}
-          <div className="flex-shrink-0 w-1/4"> {/* 너비 조정 가능 */}
+          {/* 오른쪽 연습 폼 (너비 w-1/5로 변경) */}
+          <div className="flex-shrink-0 w-1/5"> {/* 너비 20% */}
             <ValidationPracticeForm />
           </div>
         </div>
