@@ -1,12 +1,14 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react'; // useMemo 추가
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSocket } from './hooks/useSocket';
 import { getAllUsers } from './services/api';
 import LandingIntro from './components/LandingIntro';
-import PracticeForms from './components/PracticeForms';
+// import PracticeForms from './components/PracticeForms'; // 제거
+import RegistrationPracticeForm from './components/RegistrationPracticeForm'; // 추가
+import ValidationPracticeForm from './components/ValidationPracticeForm'; // 추가
 import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
 import Footer from './components/Footer';
-import MonthlyChart from './components/MonthlyChart'; // MonthlyChart 임포트
+import MonthlyChart from './components/MonthlyChart';
 
 function App() {
   // --- 상태 관리 ---
@@ -98,29 +100,51 @@ function App() {
         </div>
       )}
 
-      {/* 관리자 섹션 */}
-      <div className="w-full max-w-4xl bg-white p-8 rounded-lg shadow-md">
-        <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 패널</h2>
-        {!isLoggedIn ? (
-          <AdminLogin onLoginSuccess={handleLoginSuccess} onLoginError={handleLoginError} />
-        ) : (
-          <AdminPanel
-            users={allUsers}
-            onLogout={handleAdminLogout}
-            adminActionError={adminActionError}
-            setAdminActionError={setAdminActionError}
-            handleAdminLogout={handleAdminLogout}
-          />
-        )}
-      </div>
+      {/* 2층: 관리자 패널 및 연습 폼 (로그인 시 표시) */}
+      {isLoggedIn && (
+        <div className="w-full max-w-4xl flex justify-between items-start gap-8">
+          {/* 왼쪽 연습 폼 */}
+          <div className="flex-shrink-0 w-1/4"> {/* 너비 조정 가능 */}
+             <RegistrationPracticeForm />
+          </div>
+
+          {/* 중앙 관리자 섹션 */}
+          <div className="flex-grow bg-white p-8 rounded-lg shadow-md"> {/* flex-grow 적용 */}
+            <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 패널</h2>
+            {/* AdminPanel 컴포넌트 직접 렌더링 (AdminLogin 로직은 App.jsx 최상단에서 처리) */}
+             <AdminPanel
+                users={allUsers}
+                onLogout={handleAdminLogout}
+                adminActionError={adminActionError}
+                setAdminActionError={setAdminActionError}
+                handleAdminLogout={handleAdminLogout}
+              />
+          </div>
+
+          {/* 오른쪽 연습 폼 */}
+          <div className="flex-shrink-0 w-1/4"> {/* 너비 조정 가능 */}
+            <ValidationPracticeForm />
+          </div>
+        </div>
+      )}
+
+      {/* 로그인 폼 (로그아웃 시, 관리자 패널 위치에 표시) */}
+      {!isLoggedIn && (
+         <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-md"> {/* 로그인 폼은 너비 다르게 설정 가능 */}
+           <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 로그인</h2>
+           <AdminLogin onLoginSuccess={handleLoginSuccess} onLoginError={handleLoginError} />
+         </div>
+      )}
+
 
         {/* 연습용 폼 (아래로 이동) */}
-        <PracticeForms />
+        {/* <PracticeForms /> */} {/* 기존 PracticeForms 제거 */}
       </div> {/* flex-grow div 닫기 */}
 
       {/* 푸터 추가 (flex-grow 밖으로 이동) */}
       <Footer stats={statistics} />
     </div>
+    // 불필요한 코드 제거됨
   );
 }
 
