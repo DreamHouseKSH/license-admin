@@ -107,46 +107,49 @@ function App() {
            </div>
         )}
 
-        {/* --- 로그인 상태 레이아웃 --- */}
-        {/* 1층: 그래프 섹션 (flex-grow 비율 1) */}
+        {/* --- 로그인 상태 레이아웃 (하나의 컨테이너로 감싸기) --- */}
         {isLoggedIn && (
-          <div className="w-full bg-white p-4 rounded-lg shadow-md flex-[1]"> {/* flex-grow: 1 (비율 10%) */}
-            <MonthlyChart users={allUsers} />
-          </div>
-        )}
+          // 통합 컨테이너: 남은 공간 채우고 내부 요소 수직 배치
+          // 메인 콘텐츠 영역의 flex-grow는 유지하고, 이 div가 그 안에서 수직 flex를 담당
+          <div className="flex-grow flex flex-col gap-8">
 
-        {/* 2층: 관리자 패널 및 연습 폼 (flex-grow 비율 9) */}
-        {isLoggedIn && (
-          <div className="w-full flex justify-between items-stretch gap-8 flex-[9] overflow-hidden"> {/* flex-grow: 9 (비율 90%), overflow-hidden 추가 */}
-            {/* 왼쪽 연습 폼 (너비 w-1/5) */}
-            <div className="flex-shrink-0 w-1/5">
-               <RegistrationPracticeForm />
+            {/* 1층: 그래프 섹션 (높이 30%) */}
+            {/* flex-basis 대신 flex-grow/shrink 비율 사용 (flex-[3]) */}
+            <div className="w-full bg-white p-4 rounded-lg shadow-md flex-[3]"> {/* 비율 3 */}
+              <MonthlyChart users={allUsers} />
             </div>
 
-            {/* 중앙 관리자 섹션 (너비 w-3/5) */}
-            <div className="w-3/5 bg-white p-8 rounded-lg shadow-md flex flex-col"> {/* flex flex-col 추가 */}
-              <h2 className="text-2xl font-bold mb-6 text-center text-gray-700 flex-shrink-0">관리자 패널</h2>
-              {/* AdminPanel 내용이 남은 공간 채우도록 */}
-              <div className="flex-grow overflow-auto"> {/* 내용 스크롤 가능하도록 */}
-                 <AdminPanel
-                    users={allUsers}
-                    onLogout={handleAdminLogout}
-                    adminActionError={adminActionError}
-                    setAdminActionError={setAdminActionError}
-                    handleAdminLogout={handleAdminLogout}
-                  />
+            {/* 2층: 관리자 패널 및 연습 폼 (높이 70%) */}
+            {/* flex-basis 대신 flex-grow/shrink 비율 사용 (flex-[7]) */}
+            <div className="w-full flex justify-between items-stretch gap-8 flex-[7] overflow-hidden"> {/* 비율 7, overflow-hidden */}
+              {/* 왼쪽 연습 폼 (너비 w-1/5) */}
+              <div className="flex-shrink-0 w-1/5">
+                 <RegistrationPracticeForm />
               </div>
-            </div>
 
-            {/* 오른쪽 연습 폼 (너비 w-1/5) */}
-            <div className="flex-shrink-0 w-1/5">
-              <ValidationPracticeForm />
-            </div>
-          </div>
+              {/* 중앙 관리자 섹션 (너비 w-3/5) */}
+              <div className="w-3/5 bg-white p-8 rounded-lg shadow-md flex flex-col">
+                <h2 className="text-2xl font-bold mb-6 text-center text-gray-700 flex-shrink-0">관리자 패널</h2>
+                <div className="flex-grow overflow-auto">
+                   <AdminPanel
+                      users={allUsers}
+                      onLogout={handleAdminLogout}
+                      adminActionError={adminActionError}
+                      setAdminActionError={setAdminActionError}
+                      handleAdminLogout={handleAdminLogout}
+                    />
+                </div>
+              </div>
+
+              {/* 오른쪽 연습 폼 (너비 w-1/5) */}
+              <div className="flex-shrink-0 w-1/5">
+                <ValidationPracticeForm />
+              </div>
+            </div> {/* 2층 div 닫기 */}
+          </div> // 통합 컨테이너 div 닫기
         )}
         {/* --- 로그인 상태 레이아웃 끝 --- */}
-
-      </div> {/* flex-grow div 닫기 */}
+      </div> {/* 메인 콘텐츠 영역 div 닫기 */}
 
       {/* 푸터 추가 (flex-grow 밖으로 이동) */}
       <Footer stats={statistics} />
