@@ -86,6 +86,22 @@ function MonthlyChart({ users }) {
     };
   }, [users]);
 
+  // Y축 최대값 계산
+  const suggestedMax = useMemo(() => {
+    if (!chartData || !chartData.datasets || chartData.datasets.length === 0) {
+      return 5; // 기본값 또는 데이터 없을 때
+    }
+    let maxVal = 0;
+    chartData.datasets.forEach(dataset => {
+      const currentMax = Math.max(...dataset.data, 0); // 데이터 중 최대값 찾기 (음수 방지)
+      if (currentMax > maxVal) {
+        maxVal = currentMax;
+      }
+    });
+    // 최대값에 여유분 추가 (최소 5 보장)
+    return Math.max(5, Math.ceil(maxVal) + 2);
+  }, [chartData]); // chartData가 변경될 때만 재계산
+
   const options = {
     responsive: true,
     maintainAspectRatio: false, // 추가: 종횡비 유지 비활성화
@@ -106,7 +122,8 @@ function MonthlyChart({ users }) {
             beginAtZero: true,
             ticks: {
                 stepSize: 1 // 정수 단위로 표시
-            }
+            },
+            max: suggestedMax // 계산된 최대값 설정
         }
     }
   };
