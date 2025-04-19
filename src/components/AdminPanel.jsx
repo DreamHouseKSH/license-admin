@@ -5,11 +5,41 @@ import Filters from './Filters';
 import UserTable from './UserTable';
 import { processRequest, deleteUser } from '../services/api';
 
-function AdminPanel({ users, onLogout, adminActionError, setAdminActionError, handleAdminLogout }) {
-  // 필터링 상태 관리
-  const [statusFilter, setStatusFilter] = useState('Pending'); // 기본값 'Pending'
-  const [startDateFilter, setStartDateFilter] = useState('');
-  const [endDateFilter, setEndDateFilter] = useState('');
+// Helper function to format date as YYYY-MM-DD
+const formatDate = (date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Helper function to get the last day of a month
+const getLastDayOfMonth = (year, month) => {
+  return new Date(year, month, 0).getDate();
+};
+
+// onLogout prop 제거
+function AdminPanel({ users, /* onLogout, */ adminActionError, setAdminActionError, handleAdminLogout }) {
+  // 필터링 상태 관리 및 기본값 설정
+  const [statusFilter, setStatusFilter] = useState('Pending');
+
+  const getInitialStartDate = () => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - 3); // 3달 전
+    date.setDate(1); // 해당 월의 1일로 설정
+    return formatDate(date);
+  };
+
+  const getInitialEndDate = () => {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = date.getMonth() + 1; // 현재 월 (1-12)
+    const lastDay = getLastDayOfMonth(year, month);
+    return formatDate(new Date(year, month - 1, lastDay)); // 현재 월의 마지막 날
+  };
+
+  const [startDateFilter, setStartDateFilter] = useState(getInitialStartDate);
+  const [endDateFilter, setEndDateFilter] = useState(getInitialEndDate);
 
   // 필터링된 사용자 목록 생성
   const filteredUsers = useMemo(() => {
@@ -17,20 +47,26 @@ function AdminPanel({ users, onLogout, adminActionError, setAdminActionError, ha
       if (statusFilter !== 'All' && user.status !== statusFilter) {
         return false;
       }
+      // 연/월 기반 필터링 로직으로 변경
       try {
-        const requestDate = new Date(user.request_timestamp);
-        if (startDateFilter && requestDate < new Date(startDateFilter)) {
-          return false;
+        if (!user.request_timestamp) return false; // 타임스탬프 없으면 필터링 (혹은 다른 처리)
+
+        const requestYearMonth = user.request_timestamp.substring(0, 7); // "YYYY-MM"
+
+        if (startDateFilter) {
+          const startFilterYearMonth = startDateFilter.substring(0, 7); // "YYYY-MM"
+          if (requestYearMonth < startFilterYearMonth) {
+            return false;
+          }
         }
         if (endDateFilter) {
-            const endDate = new Date(endDateFilter);
-            endDate.setHours(23, 59, 59, 999);
-            if (requestDate > endDate) {
-                return false;
-            }
+          const endFilterYearMonth = endDateFilter.substring(0, 7); // "YYYY-MM"
+          if (requestYearMonth > endFilterYearMonth) {
+            return false;
+          }
         }
       } catch (e) {
-        console.error("날짜 필터링 오류:", e);
+        console.error("연/월 필터링 오류:", e);
       }
       return true;
     });
@@ -88,15 +124,7 @@ function AdminPanel({ users, onLogout, adminActionError, setAdminActionError, ha
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <p className="text-green-600 font-semibold">관리자 로그인됨</p>
-        <button
-          onClick={onLogout} // 상위 컴포넌트의 로그아웃 함수 호출
-          className="px-4 py-2 bg-gray-500 text-white rounded text-sm hover:bg-gray-600"
-        >
-          로그아웃
-        </button>
-      </div>
+      {/* 로그인 상태 표시 및 로그아웃 버튼 제거됨 */}
 
       {/* MonthlyChart 제거됨 */}
 
