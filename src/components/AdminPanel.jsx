@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import Statistics from './Statistics';
+// import Statistics from './Statistics'; // Statistics 컴포넌트 제거
+import MonthlyChart from './MonthlyChart'; // MonthlyChart 컴포넌트 임포트
 import Filters from './Filters';
 import UserTable from './UserTable';
-import { processRequest, deleteUser } from '../services/api'; // API 서비스 임포트
+import { processRequest, deleteUser } from '../services/api';
 
 function AdminPanel({ users, onLogout, adminActionError, setAdminActionError, handleAdminLogout }) {
   // 필터링 상태 관리
@@ -97,7 +98,8 @@ function AdminPanel({ users, onLogout, adminActionError, setAdminActionError, ha
         </button>
       </div>
 
-      <Statistics stats={statistics} />
+      {/* 통계 섹션 대신 차트 표시 */}
+      <MonthlyChart users={users} />
 
       <Filters
         statusFilter={statusFilter}
