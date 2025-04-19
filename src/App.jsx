@@ -84,9 +84,11 @@ function App() {
 
   // --- 렌더링 ---
    return (
-    <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center space-y-8">
-      {/* 랜딩 페이지 소개 */}
-      {!isLoggedIn && <LandingIntro />}
+    <div className="min-h-screen flex flex-col"> {/* p-6, items-center, space-y-8 제거 */}
+      {/* 메인 콘텐츠 영역 (flex-grow 추가) */}
+      <div className="flex-grow p-6 bg-gray-100 flex flex-col items-center space-y-8"> {/* 기존 스타일 이 div로 이동 */}
+        {/* 랜딩 페이지 소개 */}
+        {!isLoggedIn && <LandingIntro />}
 
       {/* 관리자 섹션 */}
       <div className="w-full max-w-4xl bg-white p-8 rounded-lg shadow-md">
@@ -104,10 +106,11 @@ function App() {
         )}
       </div>
 
-      {/* 연습용 폼 (아래로 이동) */}
-      <PracticeForms />
+        {/* 연습용 폼 (아래로 이동) */}
+        <PracticeForms />
+      </div> {/* flex-grow div 닫기 */}
 
-      {/* 푸터 추가 */}
+      {/* 푸터 추가 (flex-grow 밖으로 이동) */}
       <Footer stats={statistics} />
     </div>
   );

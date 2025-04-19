@@ -98,8 +98,10 @@ function AdminPanel({ users, onLogout, adminActionError, setAdminActionError, ha
         </button>
       </div>
 
-      {/* 통계 섹션 대신 차트 표시 */}
-      <MonthlyChart users={users} />
+      {/* 차트 섹션 분리 및 스타일링 */}
+      <div className="w-full mb-6">
+        <MonthlyChart users={users} />
+      </div>
 
       <Filters
         statusFilter={statusFilter}
