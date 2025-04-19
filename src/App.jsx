@@ -5,7 +5,8 @@ import LandingIntro from './components/LandingIntro';
 import PracticeForms from './components/PracticeForms';
 import AdminLogin from './components/AdminLogin';
 import AdminPanel from './components/AdminPanel';
-import Footer from './components/Footer'; // Footer 임포트
+import Footer from './components/Footer';
+import MonthlyChart from './components/MonthlyChart'; // MonthlyChart 임포트
 
 function App() {
   // --- 상태 관리 ---
@@ -86,9 +87,16 @@ function App() {
    return (
     <div className="min-h-screen flex flex-col">
       {/* 메인 콘텐츠 영역 (flex-grow 추가, items-center 다시 추가) */}
-      <div className="flex-grow p-6 bg-gray-100 flex flex-col items-center space-y-8"> {/* items-center 다시 추가 */}
+      <div className="flex-grow p-6 bg-gray-100 flex flex-col items-center space-y-8">
         {/* 랜딩 페이지 소개 */}
         {!isLoggedIn && <LandingIntro />}
+
+      {/* 그래프 섹션 (관리자 패널 위로 이동 및 스타일링) */}
+      {isLoggedIn && (
+        <div className="w-full max-w-4xl bg-white p-4 rounded-lg shadow-md h-80 mb-8"> {/* 높이(h-80), 하단 마진(mb-8) 추가 */}
+          <MonthlyChart users={allUsers} />
+        </div>
+      )}
 
       {/* 관리자 섹션 */}
       <div className="w-full max-w-4xl bg-white p-8 rounded-lg shadow-md">
