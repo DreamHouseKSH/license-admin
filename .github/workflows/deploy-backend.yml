@@ -43,7 +43,7 @@ jobs:
           SSH_PROXY_COMMAND: ssh -v -o "StrictHostKeyChecking=accept-new" -o "ProxyCommand cloudflared access ssh --hostname ${{ secrets.SSH_HOST_TUNNEL }}"
         run: |
           echo "Changing to NodeBackendServer directory..."
-          cd ${{ github.workspace }}/NodeBackendServer # NodeBackendServer 디렉토리로 이동
+          cd ${{ github.workspace }}/NodeBackendServer/ # NodeBackendServer 디렉토리로 이동
           echo "Current directory: $(pwd)"
           echo "Starting rsync with cloudflared proxy (SSH mode)..."
           # 제외할 파일/폴더 목록을 --exclude 옵션으로 지정
