@@ -110,3 +110,5 @@ function App() {
     </div>
   );
 }
+
+export default App; // 기본 export 추가
