@@ -108,16 +108,16 @@ function App() {
         )}
 
         {/* --- 로그인 상태 레이아웃 --- */}
-        {/* 1층: 그래프 섹션 (flex-grow 비율 2) */}
+        {/* 1층: 그래프 섹션 (flex-grow 비율 1) */}
         {isLoggedIn && (
-          <div className="w-full bg-white p-4 rounded-lg shadow-md flex-[2]"> {/* flex-grow: 2 (비율 20%) */}
+          <div className="w-full bg-white p-4 rounded-lg shadow-md flex-[1]"> {/* flex-grow: 1 (비율 10%) */}
             <MonthlyChart users={allUsers} />
           </div>
         )}
 
-        {/* 2층: 관리자 패널 및 연습 폼 (flex-grow 비율 8) */}
+        {/* 2층: 관리자 패널 및 연습 폼 (flex-grow 비율 9) */}
         {isLoggedIn && (
-          <div className="w-full flex justify-between items-stretch gap-8 flex-[8]"> {/* flex-grow: 8 (비율 80%) */}
+          <div className="w-full flex justify-between items-stretch gap-8 flex-[9] overflow-hidden"> {/* flex-grow: 9 (비율 90%), overflow-hidden 추가 */}
             {/* 왼쪽 연습 폼 (너비 w-1/5) */}
             <div className="flex-shrink-0 w-1/5">
                <RegistrationPracticeForm />
