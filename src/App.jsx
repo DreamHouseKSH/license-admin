@@ -110,12 +110,10 @@ function App() {
         {/* --- 로그인 상태 레이아웃 (하나의 컨테이너로 감싸기) --- */}
         {isLoggedIn && (
           // 통합 컨테이너: 남은 공간 채우고 내부 요소 수직 배치
-          // 메인 콘텐츠 영역의 flex-grow는 유지하고, 이 div가 그 안에서 수직 flex를 담당
           <div className="flex-grow flex flex-col gap-8">
 
-            {/* 1층: 그래프 섹션 (높이 30%) */}
-            {/* flex-basis 대신 flex-grow/shrink 비율 사용 (flex-[3]) */}
-            <div className="w-full bg-white p-4 rounded-lg shadow-md flex-[3]"> {/* 비율 3 */}
+            {/* 1층: 그래프 섹션 (높이 비율 3, 패딩 제거) */}
+            <div className="w-full bg-white rounded-lg shadow-md flex-[3] overflow-hidden"> {/* p-4 제거, overflow-hidden 추가 */}
               <MonthlyChart users={allUsers} />
             </div>
 

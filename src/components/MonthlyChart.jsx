@@ -98,6 +98,9 @@ function MonthlyChart({ users }) {
         text: '월별 라이선스 처리 현황',
       },
     },
+    layout: { // layout 옵션 추가
+      padding: 0 // 내부 패딩 제거
+    },
     scales: {
         y: {
             beginAtZero: true,
