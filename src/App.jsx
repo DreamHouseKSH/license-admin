@@ -86,8 +86,8 @@ function App() {
   // --- 렌더링 ---
    return (
     <div className="min-h-screen flex flex-col">
-      {/* 메인 콘텐츠 영역 (flex-grow 추가, items-center 다시 추가) */}
-      <div className="flex-grow p-6 bg-gray-100 flex flex-col items-center space-y-8">
+      {/* 메인 콘텐츠 영역 (하단 패딩 pb-24 추가) */}
+      <div className="flex-grow p-6 pb-24 bg-gray-100 flex flex-col items-center space-y-8"> {/* pb-24 추가 */}
         {/* 랜딩 페이지 소개 */}
         {!isLoggedIn && <LandingIntro />}
 
