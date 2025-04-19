@@ -89,57 +89,63 @@ function App() {
   // --- 렌더링 ---
    return (
     <div className="min-h-screen flex flex-col">
-      <Header /> {/* 헤더 추가 */}
-      {/* 메인 콘텐츠 영역 */}
-      <div className="flex-grow p-6 pb-24 bg-gray-100 flex flex-col items-center space-y-8">
-        {/* 랜딩 페이지 소개 */}
-        {!isLoggedIn && <LandingIntro />}
-
-      {/* 그래프 섹션 (관리자 패널 위로 이동 및 스타일링) */}
-      {isLoggedIn && (
-        <div className="w-full bg-white p-4 rounded-lg shadow-md"> {/* max-w-4xl 제거 */}
-          <MonthlyChart users={allUsers} />
-        </div>
-      )}
-
-      {/* 2층: 관리자 패널 및 연습 폼 (로그인 시 표시) */}
-      {isLoggedIn && (
-        <div className="w-full flex justify-between items-start gap-8">
-          {/* 왼쪽 연습 폼 (너비 w-1/5로 변경) */}
-          <div className="flex-shrink-0 w-1/5"> {/* 너비 20% */}
-             <RegistrationPracticeForm />
+      <Header />
+      {/* 메인 콘텐츠 영역 (flex-grow 유지, 내부 flex 비율 적용 위해 space-y-8 제거, items-stretch 추가 고려) */}
+      <div className="flex-grow p-6 pb-24 bg-gray-100 flex flex-col items-stretch"> {/* space-y-8 제거, items-stretch 추가 */}
+        {/* 랜딩 페이지 소개 (로그아웃 시) */}
+        {!isLoggedIn && (
+          <div className="flex-grow flex items-center justify-center"> {/* 랜딩/로그인 폼 영역 */}
+            <LandingIntro />
           </div>
+        )}
 
-          {/* 중앙 관리자 섹션 (너비 w-3/5로 변경) */}
-          <div className="w-3/5 bg-white p-8 rounded-lg shadow-md"> {/* flex-grow 제거, w-3/5 (60%) 추가 */}
-            <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 패널</h2>
-            {/* AdminPanel 컴포넌트 직접 렌더링 */}
-             <AdminPanel
-                users={allUsers}
-                onLogout={handleAdminLogout}
-                adminActionError={adminActionError}
-                setAdminActionError={setAdminActionError}
-                handleAdminLogout={handleAdminLogout}
-              />
+        {/* 로그인 폼 (로그아웃 시) */}
+        {!isLoggedIn && (
+           <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-md mx-auto"> {/* 로그인 폼 중앙 배치 */}
+             <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 로그인</h2>
+             <AdminLogin onLoginSuccess={handleLoginSuccess} onLoginError={handleLoginError} />
+           </div>
+        )}
+
+        {/* --- 로그인 상태 레이아웃 --- */}
+        {/* 1층: 그래프 섹션 (flex-grow 비율 3) */}
+        {isLoggedIn && (
+          <div className="w-full bg-white p-4 rounded-lg shadow-md flex-[3]"> {/* flex-grow: 3 */}
+            <MonthlyChart users={allUsers} />
           </div>
+        )}
 
-          {/* 오른쪽 연습 폼 (너비 w-1/5로 변경) */}
-          <div className="flex-shrink-0 w-1/5"> {/* 너비 20% */}
-            <ValidationPracticeForm />
+        {/* 2층: 관리자 패널 및 연습 폼 (flex-grow 비율 7) */}
+        {isLoggedIn && (
+          <div className="w-full flex justify-between items-stretch gap-8 flex-[7]"> {/* flex-grow: 7, items-stretch 추가 */}
+            {/* 왼쪽 연습 폼 (너비 w-1/5) */}
+            <div className="flex-shrink-0 w-1/5">
+               <RegistrationPracticeForm />
+            </div>
+
+            {/* 중앙 관리자 섹션 (너비 w-3/5) */}
+            <div className="w-3/5 bg-white p-8 rounded-lg shadow-md flex flex-col"> {/* flex flex-col 추가 */}
+              <h2 className="text-2xl font-bold mb-6 text-center text-gray-700 flex-shrink-0">관리자 패널</h2>
+              {/* AdminPanel 내용이 남은 공간 채우도록 */}
+              <div className="flex-grow overflow-auto"> {/* 내용 스크롤 가능하도록 */}
+                 <AdminPanel
+                    users={allUsers}
+                    onLogout={handleAdminLogout}
+                    adminActionError={adminActionError}
+                    setAdminActionError={setAdminActionError}
+                    handleAdminLogout={handleAdminLogout}
+                  />
+              </div>
+            </div>
+
+            {/* 오른쪽 연습 폼 (너비 w-1/5) */}
+            <div className="flex-shrink-0 w-1/5">
+              <ValidationPracticeForm />
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {/* --- 로그인 상태 레이아웃 끝 --- */}
 
-      {/* 로그인 폼 (로그아웃 시, 관리자 패널 위치에 표시) */}
-      {!isLoggedIn && (
-         <div className="w-full max-w-md bg-white p-8 rounded-lg shadow-md"> {/* 로그인 폼은 너비 다르게 설정 가능 */}
-           <h2 className="text-2xl font-bold mb-6 text-center text-gray-700">관리자 로그인</h2>
-           <AdminLogin onLoginSuccess={handleLoginSuccess} onLoginError={handleLoginError} />
-         </div>
-      )}
-
-        {/* <PracticeForms /> */} {/* 기존 PracticeForms 제거 */}
-        {/* 중복된 로그인 폼 제거됨 */}
       </div> {/* flex-grow div 닫기 */}
 
       {/* 푸터 추가 (flex-grow 밖으로 이동) */}
