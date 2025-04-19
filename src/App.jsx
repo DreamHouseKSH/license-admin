@@ -49,8 +49,7 @@ export default function App() {
   }, []);
 
   const fetchAllUsers = useCallback(async () => {
-    // accessToken 상태를 직접 사용하지 않고, 함수 호출 시 인자로 받도록 변경 (선택 사항, 의존성 줄이기)
-    const currentToken = localStorage.getItem('accessToken'); // 로컬 스토리지에서 직접 읽기
+    const currentToken = localStorage.getItem('accessToken');
     if (!currentToken) {
         console.log("fetchAllUsers: No access token found, aborting.");
         return;
@@ -59,7 +58,7 @@ export default function App() {
     try {
       console.log("Fetching all users...");
       const res = await axios.get(`${API_URL}/admin/users`, {
-        headers: { Authorization: `Bearer ${currentToken}` } // 현재 토큰 사용
+        headers: { Authorization: `Bearer ${currentToken}` }
       });
       setAllUsers(res.data || []);
     } catch (error) {
@@ -72,7 +71,7 @@ export default function App() {
         setAdminActionError('사용자 목록을 가져오는데 실패했습니다.');
       }
     }
-  }, [handleAdminLogout]); // accessToken 의존성 제거
+  }, [handleAdminLogout]);
 
   const handleAction = async (id, action) => {
     const currentToken = localStorage.getItem('accessToken');
@@ -80,7 +79,7 @@ export default function App() {
     setAdminActionError('');
     try {
       await axios.post(`${API_URL}/admin/action/${id}`,
-        { action: action },
+        { action: action }, // 백엔드는 'Approve', 'Reject' 영어로 받음
         { headers: { Authorization: `Bearer ${currentToken}` } }
       );
     } catch (error) {
@@ -99,6 +98,7 @@ export default function App() {
   const handleDelete = async (id) => {
     const currentToken = localStorage.getItem('accessToken');
     if (!currentToken) return;
+    // 확인 메시지 한국어로 변경
     if (!window.confirm(`사용자 ID ${id}를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`)) {
       return;
     }
@@ -128,23 +128,23 @@ export default function App() {
         username: adminUsername,
         password: adminPassword,
       });
-      const token = res.data.accessToken; // 백엔드 응답 키 확인 (accessToken)
-      if (token) { // 토큰이 실제로 있는지 확인
+      const token = res.data.accessToken;
+      if (token) {
         setAccessToken(token);
         localStorage.setItem('accessToken', token);
         setIsLoggedIn(true);
         setAdminPassword('');
       } else {
-         // 토큰이 응답에 없는 경우
          console.error("Login successful, but no access token received in response.");
          setLoginError('로그인 응답 오류.');
-         setIsLoggedIn(false); // 로그인 상태 변경 안 함
+         setIsLoggedIn(false);
       }
     } catch (error) {
       console.error("관리자 로그인 실패:", error);
       if (error.response && error.response.status === 401) {
         setLoginError('잘못된 사용자 이름 또는 비밀번호입니다.');
       } else {
+        // 일반 오류 메시지 한국어로 변경
         setLoginError('로그인 실패. 서버에 연결할 수 없거나 다른 오류가 발생했습니다.');
       }
       setAccessToken(null);
@@ -164,6 +164,7 @@ export default function App() {
       const res = await axios.post(`${API_URL}/register`, {
         computer_id: registerComputerId,
       });
+      // 백엔드 메시지를 그대로 사용하거나, 여기서 한국어로 변환 가능
       setRegistrationResult({ success: res.data.message });
       setRegisterComputerId('');
     } catch (error) {
@@ -190,11 +191,13 @@ export default function App() {
       const res = await axios.post(`${API_URL}/validate`, {
         computer_id: computerId,
       });
-      setValidationResult({ status: res.data.status });
+      // 'Not Found' 상태 한국어로 변경
+      const statusText = res.data.status === 'Not Found' ? '찾을 수 없음' : res.data.status;
+      setValidationResult({ status: statusText });
     } catch (error) {
       console.error("상태 확인 오류:", error);
       if (error.response && error.response.status === 404) {
-        setValidationResult({ status: 'Not Found' });
+        setValidationResult({ status: '찾을 수 없음' }); // 한국어로 변경
       } else {
         setValidationResult({ error: '상태 확인 중 오류가 발생했습니다.' });
       }
@@ -202,20 +205,18 @@ export default function App() {
   };
 
 
-  // --- useEffect 훅 1: 로그인 상태 변경 시 사용자 목록 로드 및 웹소켓 관리 ---
+  // --- useEffect 훅 ---
   useEffect(() => {
     console.log(`useEffect 1 (isLoggedIn) triggered: isLoggedIn=${isLoggedIn}`);
 
     if (isLoggedIn) {
-      // 로그인 시 사용자 목록 즉시 로드
       fetchAllUsers();
 
-      // 웹소켓 연결 설정
       console.log("Connecting to WebSocket...");
-      const currentToken = localStorage.getItem('accessToken'); // 연결 시점의 토큰 사용
+      const currentToken = localStorage.getItem('accessToken');
       if (!currentToken) {
           console.error("Cannot connect to WebSocket: No access token found.");
-          handleAdminLogout(); // 토큰 없으면 로그아웃 처리
+          handleAdminLogout();
           return;
       }
 
@@ -236,6 +237,7 @@ export default function App() {
 
       socketRef.current.on('connect_error', (err) => {
         console.error('WebSocket connection error:', err.message);
+        // 실시간 연결 오류 메시지 한국어로 변경
         setAdminActionError(`실시간 연결 오류: ${err.message}`);
         if (err.message.includes('Unauthorized') || err.message.includes('401')) {
            handleAdminLogout();
@@ -248,14 +250,12 @@ export default function App() {
       });
 
     } else {
-      // 로그아웃 시 연결 해제
       if (socketRef.current) {
         socketRef.current.disconnect();
         socketRef.current = null;
       }
     }
 
-    // 정리 함수
     return () => {
       console.log("Cleaning up WebSocket connection (useEffect 1)...");
       if (socketRef.current) {
@@ -263,25 +263,21 @@ export default function App() {
         socketRef.current = null;
       }
     };
-  }, [isLoggedIn, fetchAllUsers, handleAdminLogout]); // accessToken 의존성 제거
+  }, [isLoggedIn, fetchAllUsers, handleAdminLogout]);
 
 
-  // --- useEffect 훅 2: accessToken 변경 감지 (디버깅 및 보조) ---
   useEffect(() => {
     console.log(`useEffect 2 (accessToken) triggered: accessToken=${!!accessToken}`);
-    // accessToken이 변경되었지만 isLoggedIn이 true이고 목록이 비어있다면 다시 로드 시도
     if (isLoggedIn && accessToken && allUsers.length === 0) {
         console.log("accessToken changed, attempting to fetch users again...");
         fetchAllUsers();
     }
-    // accessToken 변경 시 웹소켓 재연결 로직은 useEffect 1에서 처리됨 (isLoggedIn 변경 시)
-  }, [accessToken, isLoggedIn, fetchAllUsers, allUsers.length]); // allUsers.length 추가
+  }, [accessToken, isLoggedIn, fetchAllUsers, allUsers.length]);
 
 
   // --- 렌더링 ---
    return (
     <div className="min-h-screen p-6 bg-gray-100 flex flex-col items-center space-y-8">
-      {/* ... (나머지 렌더링 코드는 이전과 동일) ... */}
       <div className="w-full max-w-2xl text-center">
         <h1 className="text-4xl font-bold text-gray-800 mb-4">라이선스 관리 시스템</h1>
         {!isLoggedIn && (
@@ -343,7 +339,8 @@ export default function App() {
                   상태 확인
                 </button>
                 {validationResult && (
-                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === 'Approved' ? 'bg-green-100 text-green-700' : validationResult.status === 'Rejected' ? 'bg-red-100 text-red-700' : validationResult.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : validationResult.status === 'Not Found' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>
+                  // 상태 표시 한국어 적용
+                  <div className={`mt-4 p-2 rounded-md text-sm text-center ${validationResult.error ? 'bg-red-100 text-red-700' : validationResult.status === 'Approved' ? 'bg-green-100 text-green-700' : validationResult.status === 'Rejected' ? 'bg-red-100 text-red-700' : validationResult.status === 'Pending' ? 'bg-yellow-100 text-yellow-700' : validationResult.status === '찾을 수 없음' ? 'bg-gray-100 text-gray-800' : 'bg-gray-100 text-gray-800'}`}>
                     {validationResult.error ? `오류: ${validationResult.error}` : `상태: ${validationResult.status}`}
                   </div>
                 )}
