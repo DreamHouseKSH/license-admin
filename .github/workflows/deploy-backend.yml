@@ -3,7 +3,7 @@ name: Deploy Node Backend
 on:
   push:
     branches:
-      - main # 또는 사용하는 기본 브랜치 이름
+      - main # main 브랜치에 푸시될 때 실행
     paths:
       # Node.js 백엔드 관련 파일 변경 시 워크플로우 실행
       - 'NodeBackendServer/**' # NodeBackendServer 디렉토리 내 모든 파일
@@ -12,6 +12,7 @@ on:
       # 제외 패턴 (선택 사항):
       # - '!NodeBackendServer/node_modules/**'
       # - '!NodeBackendServer/.env'
+  workflow_dispatch: # 수동 실행 트리거 추가
 
 jobs:
   deploy:
